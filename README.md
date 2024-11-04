@@ -2,7 +2,7 @@
 
 ## Description
 
-This Python script automates the process of updating your personal fork or clone of the [truecharts_archive](https://github.com/v3DJG6GL/truecharts_archive) with the latest changes from the [TrueCharts repository](https://github.com/truecharts/public). It compares charts between your personal repository and the master repository, updates versions, and optionally commits and pushes the changes back to your repository.
+This Python script automates the process of updating your personal fork / clone of the [truecharts_archive](https://github.com/v3DJG6GL/truecharts_archive) with the latest changes from the [TrueCharts repository](https://github.com/truecharts/public). It compares charts between your personal repository and the master repository, updates versions, and optionally commits and pushes the changes back to your repository.
 
 ## Requirements
 
