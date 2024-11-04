@@ -1,0 +1,32 @@
+repo:
+  master_repo_path: "C:/Github/TrueCharts Master" # The local filesystem path to your cloned TrueCharts master repository. (https://github.com/truecharts/public)
+  master_repo_branch: "master" # The branch to pull updates from in the master repository (usually `master`).
+  personal_repo_path: "C:/Github/truecharts_archive" # The local filesystem path to your cloned personal repository (your personal fork of TrueCharts from https://github.com/v3DJG6GL/truecharts_archive)
+  personal_repo_branch: "dev" # The branch to apply updates to in your personal repository.
+
+logging:
+  level: info  # Sets the logging verbosity. Options are `debug`, `info`, or `error`.
+  log_to_file: true  # If `true`, logs will be written to a file specified in `log_file`.
+  log_file: logs/update.log # The path to the log file where logs will be saved.
+
+git: # Below options are my personal options since I constantly test modifying files and don't want the hassle of reverting changes
+  reset_type: hard  # Determines how the script resets your local repository before pulling updates. Options: ['hard', 'soft', 'none']
+  clean_untracked: true  # If `true`, untracked files will be removed from the working tree.
+  commit_after_finish: true # Automatically commits changes after the script finishes updating.
+  push_commit_after_finish: true # Automatically pushes the committed changes to your personal repository.
+
+multiprocessing:
+  use_multiprocessing: true  # Enables multiprocessing for faster chart comparisons and updates. May not work on all systems.
+  max_workers: 0  # The number of worker processes to use. Set to `0` to use the number of CPU cores.
+
+folders_to_compare: # A list of chart directories to compare and update between the master and personal repositories. Options include `stable`, `incubator`, `system`, and `premium`.
+  - stable
+  - incubator
+  - system
+  - premium
+
+update_README: true # If `true`, the script will update the `README.md` file in your personal repository with a changelog of updated apps.
+
+branches_to_run:  # New key for setting multiple branches
+  - dev
+  - main

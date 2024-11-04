@@ -1,4 +1,6 @@
-gitpython
+GitPython
+pytz
 ruamel.yaml
 tqdm
-pytz
+pywin32; platform_system == "Windows"
+PyYAML
