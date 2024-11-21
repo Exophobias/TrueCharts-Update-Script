@@ -79,9 +79,9 @@ Before running the script, you need to set up the configuration to match your en
    ### Configuration Options Explained
 
    - **repo:**
-     - `master_repo_path`: The local filesystem path to your cloned TrueCharts master repository.
+     - `master_repo_path`: The local filesystem path to your cloned TrueCharts master repository. (`https://github.com/truecharts/public`)
      - `master_repo_branch`: The branch to pull updates from in the master repository (usually `master`).
-     - `personal_repo_path`: The local filesystem path to your cloned personal repository (your fork of TrueCharts).
+     - `personal_repo_path`: The local filesystem path to your cloned personal repository (your personal fork of TrueCharts from `https://github.com/v3DJG6GL/truecharts_archive`)
      - `personal_repo_branch`: The branch to apply updates to in your personal repository.
 
    - **logging:**
@@ -127,37 +127,10 @@ python update.py
 
 ## Notes
 
-- **Forking and Cloning:**
-
-  - **Forking** the TrueCharts repository allows you to have your own copy on GitHub where you can push changes.
-  - **Cloning** your forked repository to your local machine lets you run the script and apply updates locally before pushing them back to GitHub.
-
 - **Multiprocessing Compatibility:**
 
   - The multiprocessing feature may not work on all operating systems or hardware configurations. If you encounter issues, try setting `use_multiprocessing` to `false` in `config.yaml`.
-
-- **Windows Users:**
-
-  - Ensure that you have the `pywin32` package installed, as it is required for Windows-specific functionality in the script.
-
-- **Logging:**
-
-  - Adjust the `level` in the logging configuration to control the verbosity of the logs. For troubleshooting, setting it to `debug` can provide more detailed output.
-
-## Troubleshooting
-
-- **Script Exits Immediately:**
-
-  - If the script exits immediately with a message about another instance running, ensure that no other instances are running. The script uses a mutex to prevent multiple instances from running simultaneously.
-
-- **Git Errors:**
-
-  - Ensure that the paths in `config.yaml` are correct and that you have the necessary permissions to access the repositories.
-  - Check that the branches specified exist in the repositories.
-
-- **Dependency Issues:**
-
-  - Ensure all required Python packages are installed. Refer to the `requirements.txt` file.
+  - 
 
 ## Contributing
 
