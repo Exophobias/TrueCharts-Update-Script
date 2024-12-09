@@ -387,6 +387,57 @@ def update_chart_yaml(
     except Exception as e:
         logging.error(f"Error updating Chart.yaml for {chart_yaml_path}: {e}")
 
+def apply_custom_ix_values_overrides(ix_values_yaml_path: Path, custom_config: Dict[str, Any]) -> None:
+    """
+    Applies arbitrary custom overrides to ix_values.yaml based on the custom_config dictionary.
+    custom_config can have an 'app_version' key plus any number of other keys (like 'image', 'mlImage', etc.).
+    Each of these keys (except app_version) corresponds to a section in ix_values.yaml to override.
+
+    :param ix_values_yaml_path: Path to the ix_values.yaml file
+    :param custom_config: Dictionary from custom_images[chart_name], e.g.:
+        {
+          "app_version": "1.122.2",
+          "image": {
+            "repository": "ghcr.io/immich-app/immich-server",
+            "tag": "v1.122.2@sha256:...",
+            "pullPolicy": "IfNotPresent"
+          },
+          "mlImage": {
+            "repository": ...,
+            "tag": ...,
+            "pullPolicy": ...
+          },
+          ...
+        }
+
+    For each key except 'app_version', we overlay the dictionary onto ix_values.yaml.
+    """
+    yaml = YAML()
+    yaml.preserve_quotes = True
+    with ix_values_yaml_path.open('r', encoding='utf-8') as f:
+        ix_values = yaml.load(f) or {}
+
+    for key, value in custom_config.items():
+        if key == 'app_version':
+            # app_version handled separately by setting master_app_version = custom_app_version
+            continue
+        
+        # Assume each key is a dictionary of fields to override in ix_values
+        if isinstance(value, dict):
+            # Ensure the key exists in ix_values
+            if key not in ix_values:
+                ix_values[key] = {}
+            # Overwrite each field
+            for subkey, subval in value.items():
+                ix_values[key][subkey] = DoubleQuotedScalarString(str(subval))
+        else:
+            # If it's not a dict, let's store it as a string (uncommon case)
+            ix_values[key] = DoubleQuotedScalarString(str(value))
+
+    with ix_values_yaml_path.open('w', encoding='utf-8') as f:
+        yaml.dump(ix_values, f)
+
+
 #endregion ######## Chart Version Management Functions ########
 
 #region ######## Processing and Comparison Functions ########
@@ -443,7 +494,55 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
             logging.error(f"Could not retrieve personal appVersion for {chart_name} in {folder}")
             return None
         
-        if master_app_version != personal_app_version:
+        # Check if we have custom image info for this chart
+        custom_image = config.custom_images.get(chart_name, None)
+        custom_image_differs = False
+        custom_app_version = None
+
+        if custom_image:
+            latest_chart_data = app_versions_data[next(iter(app_versions_data))]
+            latest_chart_version = latest_chart_data.get("version")
+
+            custom_app_version = custom_image.get('app_version', None)
+
+            if latest_chart_version:
+                ix_values_yaml_path = config.personal_repo_path / folder / chart_name / latest_chart_version / 'ix_values.yaml'
+                if ix_values_yaml_path.exists():
+                    yaml = YAML()
+                    yaml.preserve_quotes = True
+                    with ix_values_yaml_path.open('r', encoding='utf-8') as f:
+                        ix_values = yaml.load(f) or {}
+
+                    # Check each key in custom_image except 'app_version'
+                    for key, value in custom_image.items():
+                        if key == 'app_version':
+                            continue  # Handled separately by overriding master_app_version later
+
+                        # If value is a dict, assume it's a section in ix_values.yaml
+                        if isinstance(value, dict):
+                            # Get current section from ix_values or empty if not present
+                            current_section = ix_values.get(key, {})
+                            for subkey, subval in value.items():
+                                current_val = current_section.get(subkey, '')
+                                # Compare as strings to avoid type issues
+                                if str(current_val) != str(subval):
+                                    custom_image_differs = True
+                                    break
+                            # Stop checking once one difference is found
+                            if custom_image_differs:
+                                break
+                        else:
+                            # If value is not a dict, treat it as a top-level key in ix_values
+                            # For example, if custom_image['someKey'] = 'someValue'
+                            current_val = ix_values.get(key, '')
+                            if str(current_val) != str(value):
+                                custom_image_differs = True
+                                break
+                    
+        if custom_app_version and custom_app_version != personal_app_version:
+                master_app_version = custom_app_version
+
+        if master_app_version != personal_app_version or custom_image_differs:
             logging.debug(f"{chart_name} in {folder}: Master appVersion = {master_app_version}, Personal appVersion = {personal_app_version}")
             old_chart_version, new_chart_version = get_old_and_new_chart_version(app_versions_data)
             if old_chart_version and new_chart_version:
@@ -453,6 +552,15 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
                 )
                 save_app_versions_data(personal_app_versions_json_path, app_versions_data)
                 duplicate_and_rename_version_folder(chart_name, old_chart_version, new_chart_version, master_app_version, folder)
+
+                if custom_image_differs and custom_image:
+                    # Apply custom image info directly
+                    new_ix_values_yaml = config.personal_repo_path / folder / chart_name / new_chart_version / 'ix_values.yaml'
+                    apply_custom_ix_values_overrides(new_ix_values_yaml, custom_image)
+                else:
+                    # If no custom image difference, normal flow used update_ix_values_from_master already in duplicate_and_rename_version_folder
+                    pass
+
                 return {
                     "chart_name": chart_name,
                     "folder": folder,

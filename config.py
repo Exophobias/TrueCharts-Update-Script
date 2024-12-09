@@ -52,7 +52,10 @@ class Config:
 
             self.folders_to_compare = config.get('folders_to_compare', ["stable", "incubator", "system", "premium"])
             self.update_readme_file = config.get('update_README', True)
-            self.branches_to_run = config.get('branches_to_run', ['dev'])
+            self.branches_to_run = config.get('branches_to_run', [self.personal_repo_path])
+
+            # Load custom images configuration
+            self.custom_images = config.get('custom_images', {})
 
     def override_branch(self, new_branch):
         self.personal_repo_branch = new_branch
