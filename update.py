@@ -784,6 +784,14 @@ def generate_changelog_entry(differences: List[Dict[str, Any]]) -> Tuple[str, st
                 chart_name = diff['chart_name']
                 old_version = diff['personal_app_version']
                 new_version = diff['master_app_version']
+
+                # Check if there is a custom image for this chart
+                custom_image = config.custom_images.get(chart_name, None)
+                if custom_image:
+                    # Extract the version from the tag value
+                    tag_value = custom_image['image']['tag']
+                    new_version = tag_value.split('@')[0]
+
                 changelog_entry += f"\t\t\t- {chart_name}: v{old_version} --> v{new_version}\n"
     return current_time, changelog_heading + changelog_entry
 
