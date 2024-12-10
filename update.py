@@ -9,6 +9,7 @@ import sys  # For system-specific parameters and functions
 import time  # For time-related functions
 from concurrent.futures import ThreadPoolExecutor, as_completed  # For threading
 from datetime import datetime  # For date and time manipulation
+from tzlocal import get_localzone # For getting the local timezone
 from multiprocessing import Pool  # For multiprocessing pools
 from pathlib import Path  # For object-oriented filesystem paths
 from typing import Any, Dict, List, Optional, Tuple  # For Type Hints in function names
@@ -759,8 +760,8 @@ def generate_changelog_entry(differences: List[Dict[str, Any]]) -> Tuple[str, st
         Tuple[str, str]: A tuple containing the current timestamp and the formatted changelog entry string.
     """
     changelog_heading = "- ### Changelog:\n"
-    est = pytz.timezone('America/New_York')
-    current_time = datetime.now(est).strftime("%Y.%m.%d @ %I:%M %p EST")
+    local_timezone = get_localzone()
+    current_time = datetime.now(local_timezone).strftime("%Y.%m.%d @ %I:%M %p %Z")
     changelog_entry = f"\t- {current_time}:\n"
 
     # Organize differences by folder
