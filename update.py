@@ -539,7 +539,7 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
                                 custom_image_differs = True
                                 break
                     
-        if custom_app_version and custom_app_version != personal_app_version:
+        if custom_app_version:
                 master_app_version = custom_app_version
 
         if master_app_version != personal_app_version or custom_image_differs:
