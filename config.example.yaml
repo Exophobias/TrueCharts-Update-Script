@@ -150,6 +150,12 @@ custom_images: # Override values from Master repo. Use this section incase you w
       repository: ghcr.io/elfhosted/readarr-develop
       pullPolicy: IfNotPresent
       tag: 0.4.5.2699@sha256:947ec6ae98f5a0c51695c8401fc67729a76d5ae160e57f7049e65a258215edb6
+  sabnzbd:
+    app_version: ""
+    image:
+      repository: ghcr.io/onedr0p/sabnzbd
+      pullPolicy: IfNotPresent
+      tag: 4.4.0@sha256:d2dbde184900504bf3636d2df74e466e223d6b2474b4d21a58c72eadfffa7e99
   sftpgo:
     app_version: "2.6.4"
     image:
