@@ -23,6 +23,7 @@ class Config:
         self.folders_to_compare = None
         self.update_readme_file = None
         self.branches_to_run = None  # Add branches_to_run attribute
+        self.io_optimization = None  # Add io_optimization attribute
         self.load_config()
 
     def load_config(self):
@@ -40,10 +41,22 @@ class Config:
             self.catalog_json_path = self.personal_repo_path / 'catalog.json'
             self.readme_path = self.personal_repo_path / 'README.md'
 
+            # Optimize worker count for high-end CPU
+            cpu_count = os.cpu_count()
+            if cpu_count >= 32:  # For high-core-count CPUs like 7950X
+                recommended_workers = max(16, cpu_count // 2)  # Use half the cores by default
+            else:
+                recommended_workers = max(8, cpu_count - 2)  # Leave some cores for system
+                
+            self.max_workers = config['multiprocessing'].get('max_workers', recommended_workers)
             self.use_multiprocessing = config['multiprocessing'].get('use_multiprocessing', True)
-            self.max_workers = config['multiprocessing'].get('max_workers', os.cpu_count())
-            if self.max_workers <= 0:
-                self.max_workers = os.cpu_count()
+
+            # Add I/O optimization settings
+            self.io_optimization = config.get('io_optimization', {
+                'buffer_size': 8 * 1024 * 1024,  # 8MB buffer for SSD
+                'use_direct_io': True,
+                'concurrent_io': True
+            })
 
             self.reset_type = config['git'].get('reset_type', 'hard')
             self.clean_untracked = config['git'].get('clean_untracked', True)
@@ -84,7 +97,8 @@ class Config:
                 'max_workers': self.max_workers,
             },
             'folders_to_compare': self.folders_to_compare,
-            'update_README': self.update_readme_file
+            'update_README': self.update_readme_file,
+            'io_optimization': self.io_optimization
         }
 
         with self.config_file.open('w', encoding='utf-8') as file:

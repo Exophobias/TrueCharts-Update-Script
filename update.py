@@ -7,12 +7,15 @@ import os  # For operating system dependent functionality
 import shutil  # For high-level file operations
 import sys  # For system-specific parameters and functions
 import time  # For time-related functions
-from concurrent.futures import ThreadPoolExecutor, as_completed  # For threading
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed  # For threading and multiprocessing
 from datetime import datetime  # For date and time manipulation
 from tzlocal import get_localzone # For getting the local timezone
 from multiprocessing import Pool  # For multiprocessing pools
 from pathlib import Path  # For object-oriented filesystem paths
 from typing import Any, Dict, List, Optional, Tuple  # For Type Hints in function names
+from threading import Lock, Event
+import signal
+from functools import partial
 
 # Third-party imports
 import git  # For Git repository operations
@@ -26,6 +29,9 @@ from config import Config  # Custom configuration class
 
 #region ######## Global Variables ########
 config = Config()
+catalog_lock = Lock()
+file_io_lock = Lock()
+processing_event = Event()
 #endregion ######## Global Variables ########
 
 #region ######## Git Management Functions ########
@@ -137,13 +143,14 @@ def save_app_versions_data(app_versions_json_path: Path, app_versions_data: Dict
     Raises:
         Exception: If there is an error writing to the JSON file.
     """
-    try:
-        with app_versions_json_path.open('w', encoding='utf-8') as f:
-            json.dump(app_versions_data, f, indent=4)
-            f.flush()  # Flush the buffer
-            os.fsync(f.fileno())  # Ensure the file is written to disk
-    except Exception as e:
-        logging.error(f"Error writing to {app_versions_json_path}: {e}")
+    with file_io_lock:
+        try:
+            with app_versions_json_path.open('w', encoding='utf-8') as f:
+                json.dump(app_versions_data, f, indent=4)
+                f.flush()  # Flush the buffer
+                os.fsync(f.fileno())  # Ensure the file is written to disk
+        except Exception as e:
+            logging.error(f"Error writing to {app_versions_json_path}: {e}")
 
 def get_app_versions_data(app_versions_json_path: Path) -> Optional[Dict[str, Any]]:
     """
@@ -442,29 +449,116 @@ def apply_custom_ix_values_overrides(ix_values_yaml_path: Path, custom_config: D
 #endregion ######## Chart Version Management Functions ########
 
 #region ######## Processing and Comparison Functions ########
-# For multiprocessing (CPU-bound tasks)
-def worker_init() -> None:
+def process_charts_in_parallel(chart_names: List[str], folder: str, chunk_size: int = 20) -> List[Dict[str, Any]]:
     """
-    Initializes logging in child processes for multiprocessing.
+    Optimized parallel processing for high-end hardware
+    """
+    differences = []
+    differences_lock = Lock()
+    total_charts = len(chart_names)
+    
+    # Increase chunk size for better throughput on fast storage
+    chunk_size = max(20, min(50, total_charts // (os.cpu_count() or 1)))
+    
+    is_pythonw = sys.executable.lower().endswith('pythonw.exe')
+    disable_tqdm = is_pythonw or not sys.stdout.isatty()
 
-    This function is called by each worker process when using multiprocessing.
-    It configures the logging settings to ensure that logs from child processes
-    are handled correctly.
+    # Create chunks of work for better thread utilization
+    def chunks(lst, n):
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
+
+    chart_chunks = list(chunks(chart_names, chunk_size))
+    
+    def process_chunk(chunk: List[str]) -> List[Dict[str, Any]]:
+        chunk_results = []
+        for chart_name in chunk:
+            try:
+                result = compare_and_update_chart(chart_name, folder)
+                if result:
+                    chunk_results.append(result)
+            except Exception as e:
+                logging.error(f"Error processing chart {chart_name}: {e}")
+        return chunk_results
+
+    with tqdm(total=total_charts, desc=f"Processing Charts in {folder}", 
+              unit="chart", disable=disable_tqdm) as progress_bar:
+        
+        # Use a thread pool with optimal number of workers
+        max_workers = min(32, (os.cpu_count() or 1) * 4)  # Limit max threads while maintaining good parallelism
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_chunk = {
+                executor.submit(process_chunk, chunk): chunk 
+                for chunk in chart_chunks
+            }
+
+            completed_charts = 0
+            for future in as_completed(future_to_chunk):
+                chunk = future_to_chunk[future]
+                try:
+                    chunk_results = future.result()
+                    if chunk_results:
+                        with differences_lock:
+                            differences.extend(chunk_results)
+                except Exception as e:
+                    logging.error(f"Error processing chunk: {e}")
+                finally:
+                    completed_charts += len(chunk)
+                    progress_bar.update(len(chunk))
+
+    return differences
+
+def process_folders_in_parallel(
+    master_repo_path: Path,
+    personal_repo_path: Path,
+    folders: List[str]
+) -> List[Dict[str, Any]]:
     """
-    # Remove existing handlers
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-    # Set up logging
-    log_level = getattr(logging, config.log_level, logging.ERROR)
-    if config.log_to_file:
-        config.log_file.parent.mkdir(parents=True, exist_ok=True)
-        logging.basicConfig(
-            level=log_level,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            filename=str(config.log_file)
-        )
-    else:
-        logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
+    Optimized folder processing with better parallelization
+    """
+    all_differences = []
+    differences_lock = Lock()
+
+    def process_folder(folder: str) -> List[Dict[str, Any]]:
+        logging.debug(f"\nProcessing folder: {folder}")
+        master_folders = get_folders_from_path(master_repo_path / 'charts', folder)
+        personal_folders = get_folders_from_path(personal_repo_path, folder)
+
+        master_folder_names = {folder.name for folder in master_folders}
+        personal_folder_names = {folder.name for folder in personal_folders}
+        all_folder_names = sorted(master_folder_names.union(personal_folder_names))
+
+        if not all_folder_names:
+            logging.debug(f"No charts found in folder {folder}. Skipping.")
+            return []
+
+        folder_differences = process_charts_in_parallel(all_folder_names, folder)
+
+        if folder_differences:
+            with differences_lock:
+                update_catalog_json_in_memory(folder_differences, catalog_data)
+                save_catalog_json(catalog_data, config.catalog_json_path)
+                logging.info(f"\nTotal app version differences found in {folder}: {len(folder_differences)}")
+
+        return folder_differences
+
+    # Process folders in parallel
+    with ThreadPoolExecutor(max_workers=len(folders)) as executor:
+        future_to_folder = {
+            executor.submit(process_folder, folder): folder 
+            for folder in folders
+        }
+
+        for future in as_completed(future_to_folder):
+            folder = future_to_folder[future]
+            try:
+                folder_differences = future.result()
+                if folder_differences:
+                    all_differences.extend(folder_differences)
+            except Exception as e:
+                logging.error(f"Error processing folder {folder}: {e}")
+
+    return all_differences
 
 def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str, Any]]:
     """
@@ -543,35 +637,47 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
         if custom_app_version and custom_app_version != personal_app_version:
                 master_app_version = custom_app_version
 
-        if master_app_version != personal_app_version or custom_image_differs:
-            logging.debug(f"{chart_name} in {folder}: Master appVersion = {master_app_version}, Personal appVersion = {personal_app_version}")
-            old_chart_version, new_chart_version = get_old_and_new_chart_version(app_versions_data)
-            if old_chart_version and new_chart_version:
-                logging.info(f"{chart_name} in {folder}: Updating from {old_chart_version} to {new_chart_version}")
-                app_versions_data = update_app_versions_json(
-                    chart_name, old_chart_version, new_chart_version, personal_app_version, master_app_version, app_versions_data
-                )
-                save_app_versions_data(personal_app_versions_json_path, app_versions_data)
-                duplicate_and_rename_version_folder(chart_name, old_chart_version, new_chart_version, master_app_version, folder)
+        if master_app_version and personal_app_version:
+            # Get the latest committed version
+            latest_committed = get_latest_committed_version(chart_name, folder)
+            
+            # Check if we should update based on all version information
+            should_update = should_update_version(
+                master_app_version,
+                personal_app_version,
+                latest_committed,
+                chart_name
+            )
+            
+            if should_update or custom_image_differs:
+                logging.debug(f"{chart_name} in {folder}: Master={master_app_version}, Personal={personal_app_version}, Latest Committed={latest_committed}")
+                old_chart_version, new_chart_version = get_old_and_new_chart_version(app_versions_data)
+                if old_chart_version and new_chart_version:
+                    logging.info(f"{chart_name} in {folder}: Updating from {old_chart_version} to {new_chart_version}")
+                    app_versions_data = update_app_versions_json(
+                        chart_name, old_chart_version, new_chart_version, personal_app_version, master_app_version, app_versions_data
+                    )
+                    save_app_versions_data(personal_app_versions_json_path, app_versions_data)
+                    duplicate_and_rename_version_folder(chart_name, old_chart_version, new_chart_version, master_app_version, folder)
 
-                if custom_image_differs and custom_image:
-                    # Apply custom image info directly
-                    new_ix_values_yaml = config.personal_repo_path / folder / chart_name / new_chart_version / 'ix_values.yaml'
-                    apply_custom_ix_values_overrides(new_ix_values_yaml, custom_image)
-                else:
-                    # If no custom image difference, normal flow used update_ix_values_from_master already in duplicate_and_rename_version_folder
-                    pass
+                    if custom_image_differs and custom_image:
+                        # Apply custom image info directly
+                        new_ix_values_yaml = config.personal_repo_path / folder / chart_name / new_chart_version / 'ix_values.yaml'
+                        apply_custom_ix_values_overrides(new_ix_values_yaml, custom_image)
+                    else:
+                        # If no custom image difference, normal flow used update_ix_values_from_master already in duplicate_and_rename_version_folder
+                        pass
 
-                return {
-                    "chart_name": chart_name,
-                    "folder": folder,
-                    "master_app_version": master_app_version,
-                    "personal_app_version": personal_app_version,
-                    "old_chart_version": old_chart_version,
-                    "new_chart_version": new_chart_version
-                }
-        # else:
-            # logging.debug(f"No version changes detected for {chart_name} in {folder}.")
+                    return {
+                        "chart_name": chart_name,
+                        "folder": folder,
+                        "master_app_version": master_app_version,
+                        "personal_app_version": personal_app_version,
+                        "old_chart_version": old_chart_version,
+                        "new_chart_version": new_chart_version
+                    }
+            # else:
+                # logging.debug(f"No update needed - master version {master_app_version} is not newer than personal version {personal_app_version}")
     
     else:
         logging.debug(f"{chart_name}: Files missing in either master or personal repository in {folder}.")
@@ -596,30 +702,93 @@ def compare_and_update_chart_with_progress(chart_name: str, folder: str, progres
 
 def process_charts_in_parallel_with_progress(chart_names: List[str], folder: str) -> List[Dict[str, Any]]:
     """
-    Processes charts in parallel with progress tracking in a specific folder.
-
-    Args:
-        chart_names (list): A list of chart names to process.
-        folder (str): The folder containing the charts.
-
-    Returns:
-        list: A list of dictionaries containing chart update details.
+    Improved version with better thread management and result collection
     """
     differences = []
-    total_folders = len(chart_names)  # chart_names is the list of charts (all_folder_names)
+    differences_lock = Lock()
+    total_folders = len(chart_names)
+    
     is_pythonw = sys.executable.lower().endswith('pythonw.exe')
     disable_tqdm = is_pythonw or not sys.stdout.isatty()
 
-    with tqdm(total=total_folders, desc=f"Processing Charts in {folder}", unit="chart", disable=disable_tqdm) as progress_bar:
+    with tqdm(total=total_folders, desc=f"Processing Charts in {folder}", 
+              unit="chart", disable=disable_tqdm) as progress_bar:
+        
         with ThreadPoolExecutor(max_workers=config.max_workers) as executor:
-            futures = {
-                executor.submit(compare_and_update_chart_with_progress, chart_name, folder, progress_bar): chart_name
-                for chart_name in chart_names  # chart_names is the list of all folder names (all_folder_names)
+            # Submit all work items individually for better control
+            future_to_chart = {
+                executor.submit(compare_and_update_chart, chart_name, folder): chart_name 
+                for chart_name in chart_names
             }
-            for future in as_completed(futures):
-                result = future.result()
+
+            for future in as_completed(future_to_chart):
+                chart_name = future_to_chart[future]
+                try:
+                    result = future.result()
+                    if result:
+                        with differences_lock:
+                            differences.append(result)
+                except Exception as e:
+                    logging.error(f"Error processing chart {chart_name}: {e}")
+                finally:
+                    progress_bar.update(1)
+
+    return differences
+
+def worker_init():
+    """
+    Initialize worker processes with optimized settings for high-performance hardware.
+    """
+    # Ignore SIGINT in workers
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    
+    try:
+        # Windows-specific optimizations
+        import psutil
+        import win32api
+        import win32process
+        
+        # Set high process priority
+        process = psutil.Process()
+        process.nice(psutil.HIGH_PRIORITY_CLASS)
+        
+        # Set thread priority
+        handle = win32api.GetCurrentThread()
+        win32process.SetThreadPriority(handle, win32process.THREAD_PRIORITY_HIGHEST)
+        
+        # Optimize CPU affinity for better cache utilization
+        # Use every other core to maximize L3 cache efficiency
+        cpu_count = os.cpu_count()
+        if cpu_count > 8:  # For high core count CPUs
+            cores_to_use = list(range(0, cpu_count, 2))  # Use even-numbered cores
+            process.cpu_affinity(cores_to_use)
+            
+    except ImportError:
+        logging.debug("Windows-specific optimizations not available")
+        pass
+
+def process_charts_in_parallel_multiprocessing(chart_names: List[str], folder: str) -> List[Dict[str, Any]]:
+    """
+    Fixed version with proper process pool management
+    """
+    total_folders = len(chart_names)
+    is_pythonw = sys.executable.lower().endswith('pythonw.exe')
+    disable_tqdm = is_pythonw or not sys.stdout.isatty()
+
+    # Create arguments list
+    args = [(chart_name, folder) for chart_name in chart_names]
+    differences = []
+
+    with Pool(processes=config.max_workers, initializer=worker_init) as pool:
+        with tqdm(total=total_folders, desc=f"Processing Charts in {folder}", 
+                 unit="chart", disable=disable_tqdm) as pbar:
+            
+            # Use imap_unordered for better performance with progress tracking
+            for result in pool.imap_unordered(compare_and_update_chart_multiprocessing, args):
                 if result:
                     differences.append(result)
+                pbar.update(1)
+
     return differences
 
 def compare_and_update_chart_multiprocessing(args: Tuple[str, str]) -> Optional[Dict[str, Any]]:
@@ -639,32 +808,6 @@ def compare_and_update_chart_multiprocessing(args: Tuple[str, str]) -> Optional[
         logging.error(f"Error processing chart {chart_name} in folder {folder}: {e}")
         return None
 
-def process_charts_in_parallel_multiprocessing(chart_names: List[str], folder: str) -> List[Dict[str, Any]]:
-    """
-    Processes charts in parallel using multiprocessing for faster performance.
-    Args:
-        chart_names (List[str]): A list of chart names to process.
-        folder (str): The folder containing the charts.
-    Returns:
-        List[Dict[str, Any]]: A list of dictionaries containing chart update details.
-    """
-    differences = []
-    total_folders = len(chart_names)
-    is_pythonw = sys.executable.lower().endswith('pythonw.exe')
-    disable_tqdm = is_pythonw or not sys.stdout.isatty()
-
-    with Pool(processes=config.max_workers, initializer=worker_init) as pool:
-        args = [(chart_name, folder) for chart_name in chart_names]
-        for result in tqdm(pool.imap_unordered(compare_and_update_chart_multiprocessing, args), 
-                            total=total_folders, 
-                            desc=f"Processing Charts in {folder}", 
-                            unit="chart",
-                            disable=disable_tqdm):
-            if result:
-                differences.append(result)
-
-    return differences
-
 #endregion ######## Processing and Comparison Functions ########
 
 #region ######## Catalog and README Update Functions ########
@@ -675,29 +818,30 @@ def update_catalog_json_in_memory(differences: List[Dict[str, Any]], catalog_dat
         differences (List[Dict[str, Any]]): A list of dictionaries containing chart differences.
         catalog_data (dict): The current catalog data to update.
     """
-    for diff in differences:
-        folder = diff['folder']
-        chart_name = diff['chart_name']
-        master_app_version = diff['master_app_version']
+    with catalog_lock:
+        for diff in differences:
+            folder = diff['folder']
+            chart_name = diff['chart_name']
+            master_app_version = diff['master_app_version']
 
-        # Ensure the folder exists in catalog_data
-        folder_data = catalog_data.setdefault(folder, {})
-        
-        # Ensure the chart exists in folder_data
-        chart_data = folder_data.setdefault(chart_name, {})
+            # Ensure the folder exists in catalog_data
+            folder_data = catalog_data.setdefault(folder, {})
+            
+            # Ensure the chart exists in folder_data
+            chart_data = folder_data.setdefault(chart_name, {})
 
-        #chart_data = catalog_data.get('stable', {}).get(chart_name, {})
+            #chart_data = catalog_data.get('stable', {}).get(chart_name, {})
 
-        latest_version = chart_data.get('latest_version', '0.0.0')
-        new_latest_chart_version = increment_chart_version(latest_version)
+            latest_version = chart_data.get('latest_version', '0.0.0')
+            new_latest_chart_version = increment_chart_version(latest_version)
 
-        if chart_data:
-            chart_data.update({
-                'latest_version': new_latest_chart_version,
-                'latest_app_version': master_app_version,
-                'latest_human_version': f"{master_app_version}_{new_latest_chart_version}",
-                'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            })
+            if chart_data:
+                chart_data.update({
+                    'latest_version': new_latest_chart_version,
+                    'latest_app_version': master_app_version,
+                    'latest_human_version': f"{master_app_version}_{new_latest_chart_version}",
+                    'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                })
 
 def save_catalog_json(catalog_data: Dict[str, Any], catalog_json_path: Path) -> None:
     """
@@ -708,14 +852,15 @@ def save_catalog_json(catalog_data: Dict[str, Any], catalog_json_path: Path) -> 
     Raises:
         Exception: If there is an error writing to the catalog.json file.
     """
-    try:
-        with catalog_json_path.open('w', encoding='utf-8') as f:
-            json.dump(catalog_data, f, indent=4)
-            f.flush()  # Flush the buffer
-            os.fsync(f.fileno())  # Ensure the file is written to disk
-        logging.info(f"catalog.json updated successfully.")
-    except Exception as e:
-        logging.error(f"Error writing to {catalog_json_path}: {e}")
+    with file_io_lock:
+        try:
+            with catalog_json_path.open('w', encoding='utf-8') as f:
+                json.dump(catalog_data, f, indent=4)
+                f.flush()  # Flush the buffer
+                os.fsync(f.fileno())  # Ensure the file is written to disk
+            logging.info(f"catalog.json updated successfully.")
+        except Exception as e:
+            logging.error(f"Error writing to {catalog_json_path}: {e}")
 
 def update_readme(changelog_entry: str) -> None:
     """
@@ -865,7 +1010,121 @@ def process_folders_in_parallel_multiprocessing(
 
     return all_differences
 
+def process_folders_in_parallel(
+    master_repo_path: Path,
+    personal_repo_path: Path,
+    folders: List[str]
+) -> List[Dict[str, Any]]:
+    """
+    Optimized folder processing with better parallelization
+    """
+    all_differences = []
+    differences_lock = Lock()
+
+    def process_folder(folder: str) -> List[Dict[str, Any]]:
+        logging.debug(f"\nProcessing folder: {folder}")
+        master_folders = get_folders_from_path(master_repo_path / 'charts', folder)
+        personal_folders = get_folders_from_path(personal_repo_path, folder)
+
+        master_folder_names = {folder.name for folder in master_folders}
+        personal_folder_names = {folder.name for folder in personal_folders}
+        all_folder_names = sorted(master_folder_names.union(personal_folder_names))
+
+        if not all_folder_names:
+            logging.debug(f"No charts found in folder {folder}. Skipping.")
+            return []
+
+        folder_differences = process_charts_in_parallel(all_folder_names, folder)
+
+        if folder_differences:
+            with differences_lock:
+                update_catalog_json_in_memory(folder_differences, catalog_data)
+                save_catalog_json(catalog_data, config.catalog_json_path)
+                logging.info(f"\nTotal app version differences found in {folder}: {len(folder_differences)}")
+
+        return folder_differences
+
+    # Process folders in parallel
+    with ThreadPoolExecutor(max_workers=len(folders)) as executor:
+        future_to_folder = {
+            executor.submit(process_folder, folder): folder 
+            for folder in folders
+        }
+
+        for future in as_completed(future_to_folder):
+            folder = future_to_folder[future]
+            try:
+                folder_differences = future.result()
+                if folder_differences:
+                    all_differences.extend(folder_differences)
+            except Exception as e:
+                logging.error(f"Error processing folder {folder}: {e}")
+
+    return all_differences
+
 #endregion ######## Main Processing Functions ########
+
+#region ######## Version Management Utilities ########
+def parse_version(version_str: str) -> Tuple[int, ...]:
+    """
+    Parses a version string into a tuple of integers for proper comparison.
+    Handles version strings with or without 'v' prefix, and various formats.
+    """
+    try:
+        # Remove 'v' prefix if present
+        version_str = version_str.lower().strip('v')
+        # Split on dots and convert to integers
+        parts = []
+        for part in version_str.split('.'):
+            # Handle any non-numeric suffixes by taking only the numeric part
+            numeric_part = ''.join(c for c in part if c.isdigit())
+            parts.append(int(numeric_part) if numeric_part else 0)
+        return tuple(parts)
+    except (AttributeError, ValueError):
+        return (0, 0, 0)
+
+def get_latest_committed_version(chart_name: str, folder: str) -> Optional[str]:
+    """
+    Get the latest committed version for a chart from git history.
+    """
+    try:
+        repo = git.Repo(config.personal_repo_path)
+        app_versions_path = config.personal_repo_path / folder / chart_name / 'app_versions.json'
+        
+        # Get the latest commit that modified this file
+        commits = list(repo.iter_commits(paths=str(app_versions_path), max_count=1))
+        if commits:
+            latest_commit = commits[0]
+            # Get the file content from that commit
+            app_versions_content = latest_commit.tree / folder / chart_name / 'app_versions.json'
+            if app_versions_content.data_stream:
+                app_versions_data = json.loads(app_versions_content.data_stream.read().decode('utf-8'))
+                if app_versions_data:
+                    latest_version = app_versions_data[next(iter(app_versions_data))]["chart_metadata"].get("appVersion")
+                    return latest_version
+    except Exception as e:
+        logging.debug(f"Could not retrieve latest committed version for {chart_name}: {e}")
+    return None
+
+def should_update_version(master_version: str, personal_version: str, committed_version: Optional[str], chart_name: str) -> bool:
+    """
+    Determine if a version update should proceed based on master, personal, and committed versions.
+    """
+    master_parsed = parse_version(master_version)
+    personal_parsed = parse_version(personal_version)
+    
+    # If we have a committed version, check it too
+    if committed_version:
+        committed_parsed = parse_version(committed_version)
+        # If committed version is newer or equal to master version, don't update
+        if committed_parsed >= master_parsed:
+            logging.debug(f"{chart_name}: Already committed version {committed_version} is newer than or equal to master version {master_version}")
+            return False
+    
+    # Only update if master version is strictly newer than personal version
+    return master_parsed > personal_parsed
+
+#endregion ######## Version Management Utilities ########
 
 if __name__ == "__main__":
     # Import win32 modules
@@ -902,58 +1161,68 @@ if __name__ == "__main__":
     else:
         logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    for branch in config.branches_to_run:
-        config.override_branch(branch)  # Override the branch for each iteration
-        logging.info(f"Processing branch: {branch}")
-        try:
-            git_reset_and_pull(config.master_repo_path, branch=config.master_repo_branch)
-            git_reset_and_pull(config.personal_repo_path, branch=config.personal_repo_branch)
-        except Exception as e:
-            logging.error(f"Terminating script due to git error: {e}")
-            sys.exit(1)  # Exit the script with a non-zero exit code
+    try:
+        for branch in config.branches_to_run:
+            config.override_branch(branch)  # Override the branch for each iteration
+            logging.info(f"Processing branch: {branch}")
+            try:
+                git_reset_and_pull(config.master_repo_path, branch=config.master_repo_branch)
+                git_reset_and_pull(config.personal_repo_path, branch=config.personal_repo_branch)
+            except Exception as e:
+                logging.error(f"Terminating script due to git error: {e}")
+                sys.exit(1)  # Exit the script with a non-zero exit code
 
-        start_time = time.time()
+            start_time = time.time()
 
-        try:
-            with config.catalog_json_path.open('r', encoding='utf-8') as f:
-                catalog_data = json.load(f)
-        except Exception as e:
-            logging.error(f"Error reading {config.catalog_json_path}: {e}")
-            catalog_data = {}
+            try:
+                with config.catalog_json_path.open('r', encoding='utf-8') as f:
+                    catalog_data = json.load(f)
+            except Exception as e:
+                logging.error(f"Error reading {config.catalog_json_path}: {e}")
+                catalog_data = {}
 
-        # Call the appropriate function based on whether multiprocessing is enabled
-        if config.use_multiprocessing:
-            logging.info("Running with multiprocessing")
-            all_differences = process_folders_in_parallel_multiprocessing(config.master_repo_path, config.personal_repo_path, config.folders_to_compare)
-        else:
-            logging.info("Running without multiprocessing")
-            all_differences = process_folders_in_parallel_with_progress(config.master_repo_path, config.personal_repo_path, config.folders_to_compare)
+            # Process folders directly without the extra ThreadPoolExecutor
+            if config.use_multiprocessing:
+                all_differences = process_folders_in_parallel_multiprocessing(
+                    config.master_repo_path, 
+                    config.personal_repo_path, 
+                    config.folders_to_compare
+                )
+            else:
+                all_differences = process_folders_in_parallel(
+                    config.master_repo_path, 
+                    config.personal_repo_path, 
+                    config.folders_to_compare
+                )
 
-        if all_differences:
-            sorted_differences = sorted(all_differences, key=lambda diff: diff['chart_name'])
-            
-            # Generate the changelog entry
-            current_time, changelog_entry = generate_changelog_entry(sorted_differences)
-            
-            # Check if README update is enabled
-            if config.update_readme_file:
-                update_readme(changelog_entry)
-            
-            # Commit if commit_after_finish is enabled
-            if config.commit_after_finish:
-                git_commit_and_push(config.personal_repo_path, current_time, changelog_entry)
+            if all_differences:
+                sorted_differences = sorted(all_differences, key=lambda diff: diff['chart_name'])
                 
-                # Push the commit if push_commit_after_finish is enabled
-                if config.push_commit_after_finish:
-                    repo = git.Repo(config.personal_repo_path)
-                    try:
-                        repo.remotes.origin.push(config.personal_repo_branch)
-                        logging.info(f"Changes pushed to branch {config.personal_repo_branch}.")
-                    except Exception as e:
-                        logging.error(f"Error pushing changes: {e}")
-        else:
-            logging.info("No differences found.")
+                # Generate the changelog entry
+                current_time, changelog_entry = generate_changelog_entry(sorted_differences)
+                
+                # Check if README update is enabled
+                if config.update_readme_file:
+                    update_readme(changelog_entry)
+                
+                # Commit if commit_after_finish is enabled
+                if config.commit_after_finish:
+                    git_commit_and_push(config.personal_repo_path, current_time, changelog_entry)
+                    
+                    # Push the commit if push_commit_after_finish is enabled
+                    if config.push_commit_after_finish:
+                        repo = git.Repo(config.personal_repo_path)
+                        try:
+                            repo.remotes.origin.push(config.personal_repo_branch)
+                            logging.info(f"Changes pushed to branch {config.personal_repo_branch}.")
+                        except Exception as e:
+                            logging.error(f"Error pushing changes: {e}")
+            else:
+                logging.info("No differences found.")
 
-        end_time = time.time()
-        total_time = end_time - start_time
-        logging.info(f"\nExecution time with max_workers={config.max_workers}: {total_time:.2f} seconds")
+            end_time = time.time()
+            total_time = end_time - start_time
+            logging.info(f"\nExecution time with max_workers={config.max_workers}: {total_time:.2f} seconds")
+    finally:
+        # Ensure proper cleanup
+        logging.shutdown()
