@@ -466,6 +466,55 @@ def worker_init() -> None:
     else:
         logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
+def compare_versions(version1: str, version2: str) -> int:
+    """
+    Compares two version strings.
+    Returns: 
+        1 if version1 > version2
+        -1 if version1 < version2
+        0 if equal or incomparable
+    Special cases:
+    - Special versions ('latest', 'rolling', 'develop', 'dev', 'development') are considered equal
+    - Versions without patch number (e.g., '2.15') are considered greater than their patch versions ('2.15.0', '2.15.1')
+    """
+    special_versions = {'latest', 'stable', 'master', 'rolling', 'develop', 'dev', 'development'}
+    
+    # Strip 'v' prefix if present
+    v1 = version1.lower().strip('v')
+    v2 = version2.lower().strip('v')
+    
+    # If either version is special, consider them equal
+    if v1 in special_versions or v2 in special_versions:
+        return 0
+        
+    try:
+        # Split versions into components
+        v1_parts = v1.split('.')
+        v2_parts = v2.split('.')
+        
+        # Handle versions without patch number
+        if len(v1_parts) == 2:
+            v1_parts.append('999')  # Treat as highest patch version
+        if len(v2_parts) == 2:
+            v2_parts.append('999')
+            
+        # Convert to integers for comparison
+        v1_nums = [int(x) for x in v1_parts]
+        v2_nums = [int(x) for x in v2_parts]
+        
+        # Compare version numbers
+        for i in range(max(len(v1_nums), len(v2_nums))):
+            v1_num = v1_nums[i] if i < len(v1_nums) else 0
+            v2_num = v2_nums[i] if i < len(v2_nums) else 0
+            if v1_num > v2_num:
+                return 1
+            if v1_num < v2_num:
+                return -1
+        return 0
+    except (ValueError, IndexError):
+        # If version comparison fails, consider them equal
+        return 0
+
 def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str, Any]]:
     """
     Compares the master and personal chart versions and updates if necessary.
@@ -543,7 +592,19 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
         if custom_app_version and custom_app_version != personal_app_version:
                 master_app_version = custom_app_version
 
-        if master_app_version != personal_app_version or custom_image_differs:
+        # Determine which version to use based on precedence
+        target_version = master_app_version
+        if custom_app_version:
+            target_version = custom_app_version
+        
+        # Compare versions to prevent downgrades
+        if not custom_app_version:  # Skip version check if custom version is specified
+            version_comparison = compare_versions(target_version, personal_app_version)
+            if version_comparison < 0:  # Would be a downgrade
+                logging.debug(f"Skipping {chart_name}: would downgrade from {personal_app_version} to {target_version}")
+                return None
+
+        if target_version != personal_app_version or custom_image_differs:
             logging.debug(f"{chart_name} in {folder}: Master appVersion = {master_app_version}, Personal appVersion = {personal_app_version}")
             old_chart_version, new_chart_version = get_old_and_new_chart_version(app_versions_data)
             if old_chart_version and new_chart_version:
@@ -784,7 +845,21 @@ def generate_changelog_entry(differences: List[Dict[str, Any]]) -> Tuple[str, st
                 chart_name = diff['chart_name']
                 old_version = diff['personal_app_version']
                 new_version = diff['master_app_version']
-                changelog_entry += f"\t\t\t- {chart_name}: v{old_version} --> v{new_version}\n"
+                
+                # Format versions without 'v' prefix for special versions
+                special_versions = {'latest', 'stable', 'master', 'rolling', 'develop', 'dev', 'development'}
+                if old_version.lower() in special_versions:
+                    old_str = old_version
+                else:
+                    old_str = f"v{old_version.lstrip('v')}"
+                
+                if new_version.lower() in special_versions:
+                    new_str = new_version
+                else:
+                    new_str = f"v{new_version.lstrip('v')}"
+                
+                changelog_entry += f"\t\t\t- {chart_name}: {old_str} --> {new_str}\n"
+
     return current_time, changelog_heading + changelog_entry
 
 #endregion ######## Changelog Functions ########
