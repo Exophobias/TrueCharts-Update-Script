@@ -476,6 +476,7 @@ def compare_versions(version1: str, version2: str) -> int:
     Special cases:
     - Special versions ('latest', 'rolling', 'develop', 'dev', 'development') are considered equal
     - Versions without patch number (e.g., '2.15') are considered greater than their patch versions ('2.15.0', '2.15.1')
+    - Build identifiers (e.g., '-a0bfb8370') are stripped for comparison
     """
     special_versions = {'latest', 'stable', 'master', 'rolling', 'develop', 'dev', 'development', 'nightly'}
     
@@ -488,9 +489,13 @@ def compare_versions(version1: str, version2: str) -> int:
         return 0
         
     try:
+        # Remove build identifiers (anything after '-' or '+')
+        v1_base = v1.split('-')[0].split('+')[0]
+        v2_base = v2.split('-')[0].split('+')[0]
+        
         # Split versions into components
-        v1_parts = v1.split('.')
-        v2_parts = v2.split('.')
+        v1_parts = v1_base.split('.')
+        v2_parts = v2_base.split('.')
         
         # Handle versions without patch number
         if len(v1_parts) == 2:
@@ -499,8 +504,8 @@ def compare_versions(version1: str, version2: str) -> int:
             v2_parts.append('999')
             
         # Convert to integers for comparison
-        v1_nums = [int(x) for x in v1_parts]
-        v2_nums = [int(x) for x in v2_parts]
+        v1_nums = [int(''.join(filter(str.isdigit, x))) if any(c.isdigit() for c in x) else 0 for x in v1_parts]
+        v2_nums = [int(''.join(filter(str.isdigit, x))) if any(c.isdigit() for c in x) else 0 for x in v2_parts]
         
         # Compare version numbers
         for i in range(max(len(v1_nums), len(v2_nums))):
@@ -851,11 +856,13 @@ def generate_changelog_entry(differences: List[Dict[str, Any]]) -> Tuple[str, st
                 if old_version.lower() in special_versions:
                     old_str = old_version
                 else:
+                    # Keep the original version string including build numbers, just ensure 'v' prefix
                     old_str = f"v{old_version.lstrip('v')}"
                 
                 if new_version.lower() in special_versions:
                     new_str = new_version
                 else:
+                    # Keep the original version string including build numbers, just ensure 'v' prefix
                     new_str = f"v{new_version.lstrip('v')}"
                 
                 changelog_entry += f"\t\t\t- {chart_name}: {old_str} --> {new_str}\n"
