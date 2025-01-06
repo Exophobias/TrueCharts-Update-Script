@@ -477,7 +477,7 @@ def compare_versions(version1: str, version2: str) -> int:
     - Special versions ('latest', 'rolling', 'develop', 'dev', 'development') are considered equal
     - Versions without patch number (e.g., '2.15') are considered greater than their patch versions ('2.15.0', '2.15.1')
     """
-    special_versions = {'latest', 'stable', 'master', 'rolling', 'develop', 'dev', 'development'}
+    special_versions = {'latest', 'stable', 'master', 'rolling', 'develop', 'dev', 'development', 'nightly'}
     
     # Strip 'v' prefix if present
     v1 = version1.lower().strip('v')
@@ -847,7 +847,7 @@ def generate_changelog_entry(differences: List[Dict[str, Any]]) -> Tuple[str, st
                 new_version = diff['master_app_version']
                 
                 # Format versions without 'v' prefix for special versions
-                special_versions = {'latest', 'stable', 'master', 'rolling', 'develop', 'dev', 'development'}
+                special_versions = {'latest', 'stable', 'master', 'rolling', 'develop', 'dev', 'development', 'nightly'}
                 if old_version.lower() in special_versions:
                     old_str = old_version
                 else:
