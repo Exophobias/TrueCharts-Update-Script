@@ -84,10 +84,8 @@ def git_commit_and_push(repo_path: Path, current_time: str, changelog_entry: str
 
         # Add a delay to ensure file system operations are done
         time.sleep(2)  # Wait for any pending file operations to complete
-
-        # Push to the dev branch
         origin = repo.remotes.origin
-        origin.push('dev')  # Push to the 'dev' branch
+        origin.push(config.personal_repo_branch)  # Push to the branch specified in config file
 
         logging.info(f"Changes committed and pushed with title: {commit_title}")
     except Exception as e:
@@ -303,6 +301,7 @@ def update_ix_values_from_master(
         return
     yaml = YAML()
     yaml.preserve_quotes = True
+    yaml.width = 1000000
     try:
         with master_values_yaml_path.open('r', encoding='utf-8') as f:
             master_values = yaml.load(f)
@@ -310,9 +309,9 @@ def update_ix_values_from_master(
             ix_values = yaml.load(f)
         image_data = master_values.get('image', {})
         if 'image' in ix_values:
-            ix_values['image']['repository'] = DoubleQuotedScalarString(image_data.get('repository', ix_values['image'].get('repository')))
-            ix_values['image']['tag'] = DoubleQuotedScalarString(image_data.get('tag', ix_values['image'].get('tag')))
-            ix_values['image']['pullPolicy'] = DoubleQuotedScalarString(image_data.get('pullPolicy', ix_values['image'].get('pullPolicy')))
+            ix_values['image']['repository'] = image_data.get('repository', ix_values['image'].get('repository'))
+            ix_values['image']['tag'] = image_data.get('tag', ix_values['image'].get('tag'))
+            ix_values['image']['pullPolicy'] = image_data.get('pullPolicy', ix_values['image'].get('pullPolicy'))
         with ix_values_yaml_path.open('w', encoding='utf-8') as f:
             yaml.dump(ix_values, f)
     except Exception as e:
@@ -415,6 +414,7 @@ def apply_custom_ix_values_overrides(ix_values_yaml_path: Path, custom_config: D
     """
     yaml = YAML()
     yaml.preserve_quotes = True
+    yaml.width = 1000000
     with ix_values_yaml_path.open('r', encoding='utf-8') as f:
         ix_values = yaml.load(f) or {}
 
@@ -430,10 +430,10 @@ def apply_custom_ix_values_overrides(ix_values_yaml_path: Path, custom_config: D
                 ix_values[key] = {}
             # Overwrite each field
             for subkey, subval in value.items():
-                ix_values[key][subkey] = DoubleQuotedScalarString(str(subval))
+                ix_values[key][subkey] = subval
         else:
             # If it's not a dict, let's store it as a string (uncommon case)
-            ix_values[key] = DoubleQuotedScalarString(str(value))
+            ix_values[key] = value
 
     with ix_values_yaml_path.open('w', encoding='utf-8') as f:
         yaml.dump(ix_values, f)
@@ -594,7 +594,7 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
                                 custom_image_differs = True
                                 break
                     
-        if custom_app_version and custom_app_version != personal_app_version:
+        if custom_app_version:
                 master_app_version = custom_app_version
 
         # Determine which version to use based on precedence
@@ -620,7 +620,7 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
                 save_app_versions_data(personal_app_versions_json_path, app_versions_data)
                 duplicate_and_rename_version_folder(chart_name, old_chart_version, new_chart_version, master_app_version, folder)
 
-                if custom_image_differs and custom_image:
+                if custom_image_differs:
                     # Apply custom image info directly
                     new_ix_values_yaml = config.personal_repo_path / folder / chart_name / new_chart_version / 'ix_values.yaml'
                     apply_custom_ix_values_overrides(new_ix_values_yaml, custom_image)
