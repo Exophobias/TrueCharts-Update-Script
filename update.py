@@ -1,34 +1,28 @@
-# Standard library imports
-import copy  # For deep copying objects
-import json  # For JSON serialization/deserialization
-import logging  # For logging messages
-import multiprocessing  # For multiprocessing support
-import os  # For operating system dependent functionality
-import shutil  # For high-level file operations
-import sys  # For system-specific parameters and functions
-import time  # For time-related functions
-from concurrent.futures import ThreadPoolExecutor, as_completed  # For threading
-from datetime import datetime  # For date and time manipulation
-from tzlocal import get_localzone # For getting the local timezone
-from multiprocessing import Pool  # For multiprocessing pools
-from pathlib import Path  # For object-oriented filesystem paths
-from typing import Any, Dict, List, Optional, Tuple  # For Type Hints in function names
+import copy
+import json
+import logging
+import multiprocessing
+import os
+import shutil
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from tzlocal import get_localzone
+from multiprocessing import Pool
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-# Third-party imports
-import git  # For Git repository operations
-import pytz  # For timezone handling
-from ruamel.yaml import YAML  # For YAML parsing and serialization
-from ruamel.yaml.scalarstring import DoubleQuotedScalarString  # For preserving quotes in YAML
-from tqdm import tqdm  # For progress bars
+import git
+import pytz
+from ruamel.yaml import YAML
+from ruamel.yaml.scalarstring import DoubleQuotedScalarString
+from tqdm import tqdm
 
-# Local application/library-specific imports
-from config import Config  # Custom configuration class
+from config import Config
 
-#region ######## Global Variables ########
 config = Config()
-#endregion ######## Global Variables ########
 
-#region ######## Git Management Functions ########
 def git_reset_and_pull(repo_path: Path, branch: str = 'main') -> None:  
     """
     Resets the git repository to the specified branch and pulls the latest changes.
@@ -98,9 +92,7 @@ def git_push_changes(repo_path: Path) -> None:
         logging.info(f"Changes pushed to branch {config.personal_repo_branch}.")
     except Exception as e:
         logging.error(f"Error pushing changes: {e}")
-#endregion ######## Git Management Functions ########
 
-#region ######## File I/O and Utility Functions ########
 def get_folders_from_path(repo_path: Path, folder_name: str) -> set:
     """
     Retrieves the folder paths within a specified directory (e.g., stable, incubator).
@@ -168,9 +160,6 @@ def get_app_versions_data(app_versions_json_path: Path) -> Optional[Dict[str, An
         logging.error(f"Error reading {app_versions_json_path}: {e}")
         return None
 
-#endregion ######## File I/O and Utility Functions ########
-
-#region ######## Chart Version Management Functions ########
 def increment_chart_version(old_chart_version: str) -> str:
     """
     Increments the chart version following semantic versioning rules.
@@ -446,11 +435,6 @@ def apply_custom_ix_values_overrides(ix_values_yaml_path: Path, custom_config: D
     with ix_values_yaml_path.open('w', encoding='utf-8') as f:
         yaml.dump(ix_values, f)
 
-
-#endregion ######## Chart Version Management Functions ########
-
-#region ######## Processing and Comparison Functions ########
-# For multiprocessing (CPU-bound tasks)
 def worker_init() -> None:
     """
     Initializes logging in child processes for multiprocessing.
@@ -482,25 +466,56 @@ def normalize_version_string(version: str) -> str:
         version = version[1:]
     return version
 
+def get_image_tag_parts(tag: str) -> Tuple[str, Optional[str]]:
+    """
+    Splits an image tag into version and SHA256 hash parts.
+    
+    Args:
+        tag (str): The image tag string (e.g., 'v1.0.0@sha256:abc123...' or 'develop@sha256:xyz789...')
+    
+    Returns:
+        tuple: (version, sha256_hash) where sha256_hash might be None
+    """
+    if '@sha256:' in tag:
+        version, sha = tag.split('@sha256:', 1)
+        return version, sha
+    return tag, None
+
 def compare_versions(version1: str, version2: str) -> int:
     """
-    Compares two version strings, including build identifiers.
+    Compares two version strings, including build identifiers and SHA256 hashes.
     Returns: 
         1 if version1 > version2
         -1 if version1 < version2
         0 if equal
     """
+    # Split version and hash for both strings
+    v1, sha1 = get_image_tag_parts(version1)
+    v2, sha2 = get_image_tag_parts(version2)
+    
     # Normalize both versions
-    v1 = normalize_version_string(version1)
-    v2 = normalize_version_string(version2)
+    v1 = normalize_version_string(v1)
+    v2 = normalize_version_string(v2)
     
-    # If versions are identical after normalization, they're equal
+    # If versions are identical, check SHA256 hashes
     if v1 == v2:
+        # If both have different SHA256 hashes, consider it an update
+        if sha1 is not None and sha2 is not None and sha1 != sha2:
+            return 1
+        # If only one has a SHA256 hash, prefer the one with the hash
+        if sha1 is not None and sha2 is None:
+            return 1
+        if sha1 is None and sha2 is not None:
+            return -1
         return 0
-    
+        
     # Handle special versions
     special_versions = {'latest', 'stable', 'master', 'rolling', 'develop', 'dev', 'development', 'nightly'}
     if v1 in special_versions or v2 in special_versions:
+        # If both are special versions and different, compare SHA256 hashes
+        if v1 in special_versions and v2 in special_versions and v1 == v2:
+            if sha1 is not None and sha2 is not None and sha1 != sha2:
+                return 1
         return 0
     
     try:
@@ -537,6 +552,36 @@ def compare_versions(version1: str, version2: str) -> int:
         # If parsing fails, compare as strings
         return 0 if v1 == v2 else 1 if v1 > v2 else -1
 
+def compare_image_data(current_image: Dict[str, str], new_image: Dict[str, str]) -> bool:
+    """
+    Compares current and new image data to detect changes.
+    
+    Args:
+        current_image (dict): Current image configuration
+        new_image (dict): New image configuration
+    
+    Returns:
+        bool: True if changes detected, False otherwise
+    """
+    # Compare repository if present in both
+    if ('repository' in current_image and 'repository' in new_image and 
+        current_image['repository'] != new_image['repository']):
+        return True
+    
+    # Compare tags including SHA256 hashes
+    if 'tag' in current_image and 'tag' in new_image:
+        current_ver, current_sha = get_image_tag_parts(current_image['tag'])
+        new_ver, new_sha = get_image_tag_parts(new_image['tag'])
+        
+        # If versions are same but SHA256 hashes are different, consider it changed
+        if current_ver == new_ver and current_sha != new_sha:
+            return True
+        # If versions are different
+        elif current_ver != new_ver:
+            return True
+            
+    return False
+
 def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str, Any]]:
     """
     Compares the master and personal chart versions and updates if necessary.
@@ -552,7 +597,6 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
     personal_app_versions_json_path = config.personal_repo_path / folder / chart_name / 'app_versions.json'
     
     if master_chart_yaml_path.exists() and personal_app_versions_json_path.exists():
-        # logging.debug(f"Comparing {chart_name} in {folder}...")
         master_app_version = get_app_version_from_chart(master_chart_yaml_path)
         if not master_app_version:
             logging.error(f"Could not retrieve master appVersion for {chart_name} in {folder}")
@@ -566,7 +610,6 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
             logging.error(f"Could not retrieve personal appVersion for {chart_name} in {folder}")
             return None
         
-        # Check if we have custom image info for this chart
         custom_image = config.custom_images.get(chart_name, None)
         custom_image_differs = False
         custom_app_version = None
@@ -585,47 +628,36 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
                     with ix_values_yaml_path.open('r', encoding='utf-8') as f:
                         ix_values = yaml.load(f) or {}
 
-                    # Check each key in custom_image except 'app_version'
-                    for key, value in custom_image.items():
-                        if key == 'app_version':
-                            continue  # Handled separately by overriding master_app_version later
-
-                        # If value is a dict, assume it's a section in ix_values.yaml
-                        if isinstance(value, dict):
-                            # Get current section from ix_values or empty if not present
-                            current_section = ix_values.get(key, {})
-                            for subkey, subval in value.items():
-                                current_val = current_section.get(subkey, '')
-                                # Compare as strings to avoid type issues
-                                if str(current_val) != str(subval):
+                    current_image = ix_values.get('image', {})
+                    new_image = custom_image.get('image', {})
+                    if compare_image_data(current_image, new_image):
+                        custom_image_differs = True
+                    else:
+                        for key, value in custom_image.items():
+                            if key in ('app_version', 'image'):
+                                continue
+                            
+                            if isinstance(value, dict):
+                                current_section = ix_values.get(key, {})
+                                for subkey, subval in value.items():
+                                    current_val = current_section.get(subkey, '')
+                                    if str(current_val) != str(subval):
+                                        custom_image_differs = True
+                                        break
+                            else:
+                                current_val = ix_values.get(key, '')
+                                if str(current_val) != str(value):
                                     custom_image_differs = True
                                     break
-                            # Stop checking once one difference is found
                             if custom_image_differs:
-                                break
-                        else:
-                            # If value is not a dict, treat it as a top-level key in ix_values
-                            # For example, if custom_image['someKey'] = 'someValue'
-                            current_val = ix_values.get(key, '')
-                            if str(current_val) != str(value):
-                                custom_image_differs = True
                                 break
                     
         if custom_app_version:
-                master_app_version = custom_app_version
+            master_app_version = custom_app_version
 
-        # Determine which version to use based on precedence
-        target_version = master_app_version
-        if custom_app_version:
-            target_version = custom_app_version
-        
-        # Compare full version strings including build identifiers
-        versions_equal = normalize_version_string(target_version) == normalize_version_string(personal_app_version)
-        needs_update = not versions_equal or custom_image_differs
-        
+        needs_update = custom_image_differs
+
         if needs_update:
-            # Only perform update if versions are actually different or custom image differs
-            logging.debug(f"{chart_name} in {folder}: Master appVersion = {master_app_version}, Personal appVersion = {personal_app_version}")
             old_chart_version, new_chart_version = get_old_and_new_chart_version(app_versions_data)
             if old_chart_version and new_chart_version:
                 logging.info(f"{chart_name} in {folder}: Updating from {old_chart_version} to {new_chart_version}")
@@ -636,11 +668,9 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
                 duplicate_and_rename_version_folder(chart_name, old_chart_version, new_chart_version, master_app_version, folder)
 
                 if custom_image_differs:
-                    # Apply custom image info directly
                     new_ix_values_yaml = config.personal_repo_path / folder / chart_name / new_chart_version / 'ix_values.yaml'
                     apply_custom_ix_values_overrides(new_ix_values_yaml, custom_image)
                 else:
-                    # If no custom image difference, normal flow used update_ix_values_from_master already in duplicate_and_rename_version_folder
                     pass
 
                 return {
@@ -651,8 +681,6 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
                     "old_chart_version": old_chart_version,
                     "new_chart_version": new_chart_version
                 }
-        # else:
-            # logging.debug(f"No version changes detected for {chart_name} in {folder}.")
     
     else:
         logging.debug(f"{chart_name}: Files missing in either master or personal repository in {folder}.")
@@ -687,7 +715,7 @@ def process_charts_in_parallel_with_progress(chart_names: List[str], folder: str
         list: A list of dictionaries containing chart update details.
     """
     differences = []
-    total_folders = len(chart_names)  # chart_names is the list of charts (all_folder_names)
+    total_folders = len(chart_names)
     is_pythonw = sys.executable.lower().endswith('pythonw.exe')
     disable_tqdm = is_pythonw or not sys.stdout.isatty()
 
@@ -695,7 +723,7 @@ def process_charts_in_parallel_with_progress(chart_names: List[str], folder: str
         with ThreadPoolExecutor(max_workers=config.max_workers) as executor:
             futures = {
                 executor.submit(compare_and_update_chart_with_progress, chart_name, folder, progress_bar): chart_name
-                for chart_name in chart_names  # chart_names is the list of all folder names (all_folder_names)
+                for chart_name in chart_names
             }
             for future in as_completed(futures):
                 result = future.result()
@@ -713,7 +741,7 @@ def compare_and_update_chart_multiprocessing(args: Tuple[str, str]) -> Optional[
     Returns:
         dict: A dictionary with chart update details if an update occurs, None otherwise.
     """
-    chart_name, folder = args  # Only 2 arguments are passed now
+    chart_name, folder = args
     try:
         return compare_and_update_chart(chart_name, folder)
     except Exception as e:
@@ -746,9 +774,6 @@ def process_charts_in_parallel_multiprocessing(chart_names: List[str], folder: s
 
     return differences
 
-#endregion ######## Processing and Comparison Functions ########
-
-#region ######## Catalog and README Update Functions ########
 def update_catalog_json_in_memory(differences: List[Dict[str, Any]], catalog_data: Dict[str, Any]) -> None:
     """
     Updates the catalog JSON data in memory based on chart differences.
@@ -761,13 +786,9 @@ def update_catalog_json_in_memory(differences: List[Dict[str, Any]], catalog_dat
         chart_name = diff['chart_name']
         master_app_version = diff['master_app_version']
 
-        # Ensure the folder exists in catalog_data
         folder_data = catalog_data.setdefault(folder, {})
         
-        # Ensure the chart exists in folder_data
         chart_data = folder_data.setdefault(chart_name, {})
-
-        #chart_data = catalog_data.get('stable', {}).get(chart_name, {})
 
         latest_version = chart_data.get('latest_version', '0.0.0')
         new_latest_chart_version = increment_chart_version(latest_version)
@@ -829,9 +850,6 @@ def update_readme(changelog_entry: str) -> None:
     except Exception as e:
         logging.error(f"Error writing to {config.readme_path}: {e}")
 
-#endregion ######## Catalog and README Update Functions ########
-
-#region ######## Changelog Functions ########
 def generate_changelog_entry(differences: List[Dict[str, Any]]) -> Tuple[str, str]:
     """
     Generates a changelog entry string based on chart differences.
@@ -845,7 +863,6 @@ def generate_changelog_entry(differences: List[Dict[str, Any]]) -> Tuple[str, st
     current_time = datetime.now(local_timezone).strftime("%Y.%m.%d @ %I:%M %p %Z")
     changelog_entry = f"\t- {current_time}:\n"
 
-    # Organize differences by folder
     folder_differences = {}
     for diff in differences:
         folder = diff['folder']
@@ -853,54 +870,36 @@ def generate_changelog_entry(differences: List[Dict[str, Any]]) -> Tuple[str, st
             folder_differences[folder] = []
         folder_differences[folder].append(diff)
 
-    # For each folder in folders_to_compare, in order
     for folder in config.folders_to_compare:
         if folder in folder_differences:
             diffs_in_folder = folder_differences[folder]
-            # Sort diffs_in_folder by chart_name
             sorted_diffs = sorted(diffs_in_folder, key=lambda d: d['chart_name'].lower())
-            # Add folder heading
             changelog_entry += f"\t\t- {folder.capitalize()}:\n"
             for diff in sorted_diffs:
                 chart_name = diff['chart_name']
                 old_version = diff['personal_app_version']
                 new_version = diff['master_app_version']
                 
-                # Format versions without 'v' prefix for special versions
                 special_versions = {'latest', 'stable', 'master', 'rolling', 'develop', 'dev', 'development', 'nightly'}
                 if old_version.lower() in special_versions:
                     old_str = old_version
                 else:
-                    # Keep the original version string including build numbers, just ensure 'v' prefix
                     old_str = f"v{old_version.lstrip('v')}"
                 
                 if new_version.lower() in special_versions:
                     new_str = new_version
                 else:
-                    # Keep the original version string including build numbers, just ensure 'v' prefix
                     new_str = f"v{new_version.lstrip('v')}"
                 
                 changelog_entry += f"\t\t\t- {chart_name}: {old_str} --> {new_str}\n"
 
     return current_time, changelog_heading + changelog_entry
 
-#endregion ######## Changelog Functions ########
-
-#region ######## Main Processing Functions ########
 def process_folders_in_parallel_with_progress(
     master_repo_path: Path,
     personal_repo_path: Path,
     folders: List[str]
-) -> List[Dict[str, Any]]:
-    """
-    Processes folders sequentially, updating charts and tracking progress.
-    Args:
-        master_repo_path (Path): The path to the master repository.
-        personal_repo_path (Path): The path to the personal repository.
-        folders (List[str]): A list of folder names to process.
-    Returns:
-        List[Dict[str, Any]]: A list of dictionaries containing chart update details.
-    """
+) -> List[Dict[str, Any]]:  # Changed } to :
     all_differences = []
     for folder in folders:
         logging.debug(f"\nProcessing folder: {folder}")
@@ -929,16 +928,7 @@ def process_folders_in_parallel_multiprocessing(
     master_repo_path: Path,
     personal_repo_path: Path,
     folders: List[str]
-) -> List[Dict[str, Any]]:
-    """
-    Processes folders in parallel using multiprocessing for improved performance.
-    Args:
-        master_repo_path (Path): The path to the master repository.
-        personal_repo_path (Path): The path to the personal repository.
-        folders (List[str]): A list of folder names to process.
-    Returns:
-        List[Dict[str, Any]]: A list of dictionaries containing chart update details.
-    """
+) -> List[Dict[str, Any]]:  # Changed } to :
     all_differences = []
     for folder in folders:
         logging.debug(f"\nProcessing folder: {folder}")
@@ -962,10 +952,7 @@ def process_folders_in_parallel_multiprocessing(
 
     return all_differences
 
-#endregion ######## Main Processing Functions ########
-
 if __name__ == "__main__":
-    # Import win32 modules
     try:
         import win32event
         import win32api
@@ -974,40 +961,35 @@ if __name__ == "__main__":
         logging.error("pywin32 is required for this script to run.")
         sys.exit(1)
 
-    # Create a named mutex
     mutex_name = "Global\\TrueNasGithubUpdateScript"
     mutex = win32event.CreateMutex(None, False, mutex_name)
     last_error = win32api.GetLastError()
 
     if last_error == winerror.ERROR_ALREADY_EXISTS:
-        # Another instance is running
         logging.error("Another instance is already running. Exiting.")
         sys.exit(0)
 
     multiprocessing.set_start_method('spawn', force=True)
-    # Remove all existing handlers (optional but recommended)
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
 
-    # Set up logging based on the config
-    log_level = getattr(logging, config.log_level, logging.ERROR)  # Get the numeric log level from the string
+    log_level = getattr(logging, config.log_level, logging.ERROR)
 
     if config.log_to_file:
-        # Ensure the directory for the log file exists
         config.log_file.parent.mkdir(parents=True, exist_ok=True)
         logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s', filename=str(config.log_file))
     else:
         logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
     for branch in config.branches_to_run:
-        config.override_branch(branch)  # Override the branch for each iteration
+        config.override_branch(branch)
         logging.info(f"Processing branch: {branch}")
         try:
             git_reset_and_pull(config.master_repo_path, branch=config.master_repo_branch)
             git_reset_and_pull(config.personal_repo_path, branch=config.personal_repo_branch)
         except Exception as e:
             logging.error(f"Terminating script due to git error: {e}")
-            sys.exit(1)  # Exit the script with a non-zero exit code
+            sys.exit(1)
 
         start_time = time.time()
 
@@ -1018,7 +1000,6 @@ if __name__ == "__main__":
             logging.error(f"Error reading {config.catalog_json_path}: {e}")
             catalog_data = {}
 
-        # Call the appropriate function based on whether multiprocessing is enabled
         if config.use_multiprocessing:
             logging.info("Running with multiprocessing")
             all_differences = process_folders_in_parallel_multiprocessing(config.master_repo_path, config.personal_repo_path, config.folders_to_compare)
@@ -1029,18 +1010,14 @@ if __name__ == "__main__":
         if all_differences:
             sorted_differences = sorted(all_differences, key=lambda diff: diff['chart_name'])
             
-            # Generate the changelog entry
             current_time, changelog_entry = generate_changelog_entry(sorted_differences)
             
-            # Check if README update is enabled
             if config.update_readme_file:
                 update_readme(changelog_entry)
             
-            # Commit if commit_after_finish is enabled
             if config.commit_after_finish:
                 git_commit_changes(config.personal_repo_path, current_time, changelog_entry)
                 
-                # Only push if push_commit_after_finish is enabled
                 if config.push_commit_after_finish:
                     git_push_changes(config.personal_repo_path)
         else:
@@ -1049,3 +1026,5 @@ if __name__ == "__main__":
         end_time = time.time()
         total_time = end_time - start_time
         logging.info(f"\nExecution time with max_workers={config.max_workers}: {total_time:.2f} seconds")
+    win32event.CloseHandle(mutex)
+    sys.exit(0)
