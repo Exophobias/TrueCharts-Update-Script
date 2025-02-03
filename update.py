@@ -58,17 +58,14 @@ def git_reset_and_pull(repo_path: Path, branch: str = 'main') -> None:
         logging.error(f"Error pulling repository at {repo_path} on branch {branch}: {e}")
         raise  # Re-raise the exception to stop the script
 
-def git_commit_and_push(repo_path: Path, current_time: str, changelog_entry: str) -> None:
+def git_commit_changes(repo_path: Path, current_time: str, changelog_entry: str) -> None:
     """
-    Commits changes to the git repository and pushes to the specified branch.
+    Commits changes to the git repository without pushing.
 
     Args:
         repo_path (str or Path): The path to the git repository.
         current_time (str): The current timestamp to include in the commit message.
         changelog_entry (str): The changelog entry to include in the commit message.
-
-    Raises:
-        Exception: If there is an error during the git commit or push process.
     """
     repo = git.Repo(repo_path)
     try:
@@ -81,15 +78,26 @@ def git_commit_and_push(repo_path: Path, current_time: str, changelog_entry: str
 
         # Commit the changes
         repo.index.commit(commit_message)
-
-        # Add a delay to ensure file system operations are done
-        time.sleep(2)  # Wait for any pending file operations to complete
-        origin = repo.remotes.origin
-        origin.push(config.personal_repo_branch)  # Push to the branch specified in config file
-
-        logging.info(f"Changes committed and pushed with title: {commit_title}")
+        logging.info(f"Changes committed locally with title: {commit_title}")
     except Exception as e:
-        logging.error(f"Error committing and pushing changes: {e}")
+        logging.error(f"Error committing changes: {e}")
+
+def git_push_changes(repo_path: Path) -> None:
+    """
+    Pushes committed changes to the remote repository.
+
+    Args:
+        repo_path (str or Path): The path to the git repository.
+    """
+    try:
+        repo = git.Repo(repo_path)
+        # Add a delay to ensure file system operations are done
+        time.sleep(2)
+        origin = repo.remotes.origin
+        origin.push(config.personal_repo_branch)
+        logging.info(f"Changes pushed to branch {config.personal_repo_branch}.")
+    except Exception as e:
+        logging.error(f"Error pushing changes: {e}")
 #endregion ######## Git Management Functions ########
 
 #region ######## File I/O and Utility Functions ########
@@ -466,59 +474,68 @@ def worker_init() -> None:
     else:
         logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
+def normalize_version_string(version: str) -> str:
+    """Normalize version string by ensuring consistent format."""
+    version = version.lower().strip()
+    # Remove 'v' prefix if present
+    if version.startswith('v'):
+        version = version[1:]
+    return version
+
 def compare_versions(version1: str, version2: str) -> int:
     """
-    Compares two version strings.
+    Compares two version strings, including build identifiers.
     Returns: 
         1 if version1 > version2
         -1 if version1 < version2
-        0 if equal or incomparable
-    Special cases:
-    - Special versions ('latest', 'rolling', 'develop', 'dev', 'development') are considered equal
-    - Versions without patch number (e.g., '2.15') are considered greater than their patch versions ('2.15.0', '2.15.1')
-    - Build identifiers (e.g., '-a0bfb8370') are stripped for comparison
+        0 if equal
     """
+    # Normalize both versions
+    v1 = normalize_version_string(version1)
+    v2 = normalize_version_string(version2)
+    
+    # If versions are identical after normalization, they're equal
+    if v1 == v2:
+        return 0
+    
+    # Handle special versions
     special_versions = {'latest', 'stable', 'master', 'rolling', 'develop', 'dev', 'development', 'nightly'}
-    
-    # Strip 'v' prefix if present
-    v1 = version1.lower().strip('v')
-    v2 = version2.lower().strip('v')
-    
-    # If either version is special, consider them equal
     if v1 in special_versions or v2 in special_versions:
         return 0
-        
+    
     try:
-        # Remove build identifiers (anything after '-' or '+')
-        v1_base = v1.split('-')[0].split('+')[0]
-        v2_base = v2.split('-')[0].split('+')[0]
+        # Split into version and build parts
+        v1_parts = v1.split('-')
+        v2_parts = v2.split('-')
         
-        # Split versions into components
-        v1_parts = v1_base.split('.')
-        v2_parts = v2_base.split('.')
+        # Compare main version numbers first
+        v1_nums = [int(''.join(filter(str.isdigit, x))) for x in v1_parts[0].split('.')]
+        v2_nums = [int(''.join(filter(str.isdigit, x))) for x in v2_parts[0].split('.')]
         
-        # Handle versions without patch number
-        if len(v1_parts) == 2:
-            v1_parts.append('999')  # Treat as highest patch version
-        if len(v2_parts) == 2:
-            v2_parts.append('999')
-            
-        # Convert to integers for comparison
-        v1_nums = [int(''.join(filter(str.isdigit, x))) if any(c.isdigit() for c in x) else 0 for x in v1_parts]
-        v2_nums = [int(''.join(filter(str.isdigit, x))) if any(c.isdigit() for c in x) else 0 for x in v2_parts]
+        # Pad with zeros if needed
+        while len(v1_nums) < 3: v1_nums.append(0)
+        while len(v2_nums) < 3: v2_nums.append(0)
         
         # Compare version numbers
         for i in range(max(len(v1_nums), len(v2_nums))):
-            v1_num = v1_nums[i] if i < len(v1_nums) else 0
-            v2_num = v2_nums[i] if i < len(v2_nums) else 0
-            if v1_num > v2_num:
-                return 1
-            if v1_num < v2_num:
-                return -1
-        return 0
+            n1 = v1_nums[i] if i < len(v1_nums) else 0
+            n2 = v2_nums[i] if i < len(v2_nums) else 0
+            if n1 > n2: return 1
+            if n1 < n2: return -1
+            
+        # If version numbers are equal, compare build identifiers if present
+        if len(v1_parts) > 1 and len(v2_parts) > 1:
+            # Both have build identifiers - compare them
+            return 0 if v1_parts[1] == v2_parts[1] else 1 if v1_parts[1] > v2_parts[1] else -1
+        elif len(v1_parts) > 1:
+            return 1  # First version has build identifier, second doesn't
+        elif len(v2_parts) > 1:
+            return -1  # Second version has build identifier, first doesn't
+            
+        return 0  # Everything is equal
     except (ValueError, IndexError):
-        # If version comparison fails, consider them equal
-        return 0
+        # If parsing fails, compare as strings
+        return 0 if v1 == v2 else 1 if v1 > v2 else -1
 
 def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str, Any]]:
     """
@@ -602,14 +619,12 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
         if custom_app_version:
             target_version = custom_app_version
         
-        # Compare versions to prevent downgrades
-        if not custom_app_version:  # Skip version check if custom version is specified
-            version_comparison = compare_versions(target_version, personal_app_version)
-            if version_comparison < 0:  # Would be a downgrade
-                logging.debug(f"Skipping {chart_name}: would downgrade from {personal_app_version} to {target_version}")
-                return None
-
-        if target_version != personal_app_version or custom_image_differs:
+        # Compare full version strings including build identifiers
+        versions_equal = normalize_version_string(target_version) == normalize_version_string(personal_app_version)
+        needs_update = not versions_equal or custom_image_differs
+        
+        if needs_update:
+            # Only perform update if versions are actually different or custom image differs
             logging.debug(f"{chart_name} in {folder}: Master appVersion = {master_app_version}, Personal appVersion = {personal_app_version}")
             old_chart_version, new_chart_version = get_old_and_new_chart_version(app_versions_data)
             if old_chart_version and new_chart_version:
@@ -1023,16 +1038,11 @@ if __name__ == "__main__":
             
             # Commit if commit_after_finish is enabled
             if config.commit_after_finish:
-                git_commit_and_push(config.personal_repo_path, current_time, changelog_entry)
+                git_commit_changes(config.personal_repo_path, current_time, changelog_entry)
                 
-                # Push the commit if push_commit_after_finish is enabled
+                # Only push if push_commit_after_finish is enabled
                 if config.push_commit_after_finish:
-                    repo = git.Repo(config.personal_repo_path)
-                    try:
-                        repo.remotes.origin.push(config.personal_repo_branch)
-                        logging.info(f"Changes pushed to branch {config.personal_repo_branch}.")
-                    except Exception as e:
-                        logging.error(f"Error pushing changes: {e}")
+                    git_push_changes(config.personal_repo_path)
         else:
             logging.info("No differences found.")
 
