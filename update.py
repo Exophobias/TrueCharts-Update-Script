@@ -614,10 +614,10 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
         custom_image_differs = False
         custom_app_version = None
 
+        # Handle custom image case first
         if custom_image:
             latest_chart_data = app_versions_data[next(iter(app_versions_data))]
             latest_chart_version = latest_chart_data.get("version")
-
             custom_app_version = custom_image.get('app_version', None)
 
             if latest_chart_version:
@@ -628,15 +628,16 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
                     with ix_values_yaml_path.open('r', encoding='utf-8') as f:
                         ix_values = yaml.load(f) or {}
 
+                    # For custom images, prioritize SHA256 hash changes
                     current_image = ix_values.get('image', {})
                     new_image = custom_image.get('image', {})
                     if compare_image_data(current_image, new_image):
                         custom_image_differs = True
                     else:
+                        # Check other custom config changes only if image hasn't changed
                         for key, value in custom_image.items():
                             if key in ('app_version', 'image'):
                                 continue
-                            
                             if isinstance(value, dict):
                                 current_section = ix_values.get(key, {})
                                 for subkey, subval in value.items():
@@ -651,11 +652,18 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
                                     break
                             if custom_image_differs:
                                 break
-                    
+
         if custom_app_version:
             master_app_version = custom_app_version
 
-        needs_update = custom_image_differs
+        # Determine update condition based on whether it's a custom image or not
+        if custom_image:
+            # For custom images, only update if image/hash differs
+            needs_update = custom_image_differs
+        else:
+            # For master repo updates, compare versions normally
+            versions_equal = normalize_version_string(master_app_version) == normalize_version_string(personal_app_version)
+            needs_update = not versions_equal
 
         if needs_update:
             old_chart_version, new_chart_version = get_old_and_new_chart_version(app_versions_data)
@@ -1026,5 +1034,3 @@ if __name__ == "__main__":
         end_time = time.time()
         total_time = end_time - start_time
         logging.info(f"\nExecution time with max_workers={config.max_workers}: {total_time:.2f} seconds")
-    win32event.CloseHandle(mutex)
-    sys.exit(0)
