@@ -1,0 +1,129 @@
+repo:
+  master_repo_path: "F:/TrueNAS/TrueCharts_Master" # The local filesystem path to your cloned TrueCharts master repository. (https://github.com/truecharts/public)
+  master_repo_branch: "master" # The branch to pull updates from in the master repository (usually `master`).
+  personal_repo_path: "F:/TrueNAS/truecharts_archive" # The local filesystem path to your cloned personal repository (your personal fork of TrueCharts from https://github.com/v3DJG6GL/truecharts_archive)
+  personal_repo_branch: "main" # The branch to apply updates to in your personal repository.
+
+logging:
+  level: info  # Sets the logging verbosity. Options are `debug`, `info`, or `error`.
+  log_to_file: true  # If `true`, logs will be written to a file specified in `log_file`.
+  log_file: logs/update.log # The path to the log file where logs will be saved.
+
+git: # Below options are my personal options since I constantly test modifying files and don't want the hassle of reverting changes
+  reset_type: hard  # Determines how the script resets your local repository before pulling updates. Options: ['hard', 'soft', 'none']
+  clean_untracked: true  # If `true`, untracked files will be removed from the working tree.
+  commit_after_finish: true # Automatically commits changes after the script finishes updating.
+  push_commit_after_finish: false # Automatically pushes the committed changes to your personal repository.
+
+multiprocessing:
+  use_multiprocessing: true  # Enables multiprocessing for faster chart comparisons and updates.
+  max_workers: 24     # Set as 75% of a Ryzen 9950X (32 threads)
+  chunk_size: 40      # Larger chunks for better SSD utilization
+
+io_optimization:
+  buffer_size: 8388608  # 8MB buffer size
+  use_direct_io: true   # Enable direct I/O for SSD
+  concurrent_io: true   # Enable concurrent I/O operations
+
+folders_to_compare: # A list of chart directories to compare and update between the master and personal repositories. Options include `stable`, `incubator`, `system`, and `premium`.
+  - stable
+  - incubator
+  - system
+  - premium
+
+update_README: true # If `true`, the script will update the `README.md` file in your personal repository with a changelog of updated apps.
+
+branches_to_run:  # New key for setting multiple branches
+  - main
+
+custom_images: # Override values from Master repo. Use this section incase you want to update an app or use an alternative package.
+  traefik:
+    app_version: "3.3.3"
+    image:
+      repository: ghcr.io/traefik/traefik
+      pullPolicy: IfNotPresent
+      tag: v3.3.3@sha256:f1fdee7fda041872cff24e36a08f45ca53f006ded88f743a8e30e3d87ca52b48
+  blocky:
+    app_version: "development"
+    image:
+      repository: ghcr.io/0xerr0r/blocky
+      pullPolicy: IfNotPresent
+      tag: development@sha256:a7ff25c5df11872e10beff1a0f226e5d751ee2799649d5713fdc0eaa7f843fe1
+  plex:
+    app_version: "1.41.3.9314-a0bfb8370"
+    image:
+      repository: ghcr.io/onedr0p/plex
+      pullPolicy: IfNotPresent
+      tag: 1.41.3.9314-a0bfb8370@sha256:4e004defdf450e5d86ce8c29f2dc62fa95fa12dfaae52fd36c948427eb186952
+  overseerr:
+    app_version: "1.33.2"
+    image:
+      repository: ghcr.io/sct/overseerr
+      tag: develop@sha256:bcd1ef5c2501c3210b3a8bbaf124f9f3b241f23a3f55038f80412f20e625bd17
+      pullPolicy: IfNotPresent
+  sabnzbd:
+    app_version: "4.4.1"
+    image:
+      repository: ghcr.io/onedr0p/sabnzbd
+      pullPolicy: IfNotPresent
+      tag: 4.4.1@sha256:4188d3c29c53de1018edcfd5dc2d0a0c7955b9a239b91ff6c859626abd3494dc
+  prowlarr:
+    app_version: "1.29.2.4915"
+    image:
+      repository: ghcr.io/onedr0p/prowlarr
+      tag: 1.29.2.4915@sha256:cfbf7216e11b70706d08c95bb403c94cb2df89adf18e2f3758dd15a0ec110e67
+      pullPolicy: IfNotPresent
+  radarr:
+    app_version: "5.18.4.9674"
+    image:
+      repository: ghcr.io/onedr0p/radarr
+      pullPolicy: IfNotPresent
+      tag: 5.18.4.9674@sha256:f63ab1d9875d81f1b6d7cd69427749451d2fab981e39ffb8d9071c2e21041170
+  sonarr:
+    app_version: "4.0.12.2823"
+    image:
+      repository: ghcr.io/onedr0p/sonarr
+      tag: 4.0.12.2823@sha256:f453b589cd553e09244b2fb48d74ae4047e6fab1fa837e008755be1200a62407
+      pullPolicy: IfNotPresent
+  readarr:
+    app_version: "0.4.7.2718"
+    image:
+      repository: ghcr.io/elfhosted/readarr-develop
+      pullPolicy: IfNotPresent
+      tag: 0.4.7.2718@sha256:68e5d14d1b57592fb05df7f434b611dfc845f96ba1daecb32cb85c65e6e4f26f
+  tautulli:
+    app_version: "nightly"
+    image:
+      repository: ghcr.io/tautulli/tautulli
+      pullPolicy: IfNotPresent
+      tag: nightly@sha256:7ceadd27de6e4d3248a139a0232a8dcadd081e570639872f3f7b52a34dead007
+  hammand:
+    app_version: "0.0.25"
+    image:
+      repository: ghcr.io/heathouse/hammond
+      tag: 0.0.25@sha256:23935bb5cfc2ae14ae815c0666f82d45ff61375ab58a720ab5ef7484a2bffe75
+      pullPolicy: IfNotPresent
+  dell-idrac-fan-controller:
+    app_version: "latest"
+    image:
+      repository: ghcr.io/tigerblue77/dell_idrac_fan_controller
+      pullPolicy: IfNotPresent
+      tag: latest@sha256:5184af88c6c03204611d40d4b1c6bc36202762592d16a97236bb4254951d23b0
+  minio:
+    app_version: "2024-12-18"
+    image:
+      repository: docker.io/minio/minio
+      pullPolicy: IfNotPresent
+      tag: RELEASE.2024-12-18T13-15-44Z@sha256:1dce27c494a16bae114774f1cec295493f3613142713130c2d22dd5696be6ad3
+  mylar:
+    app_version: "nightly-be4fced5-ls458"
+    image:
+      repository: ghcr.io/linuxserver/mylar3
+      tag: nightly-be4fced5-ls458@sha256:09f6b899a50e682070a3e597d4d17ebbc8b841001806a4f825b6ae68d0c454d8
+      pullPolicy: IfNotPresent
+  grocy:
+    app_version: "nightly-be4fced5-ls458"
+    image:
+      repository: "ghcr.io/linuxserver/grocy"
+      tag: "4.4.1@sha256:3064bd56fa72d8eba748fcee209c40b6e86639e274966247e584a979e9c61677"
+      pullPolicy: "IfNotPresent"

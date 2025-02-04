@@ -159,7 +159,6 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 /personal
-config.yaml
 *.lnk
 .vscode/launch.json
 update_catalog_from__app_versions.py
