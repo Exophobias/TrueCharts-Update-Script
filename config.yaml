@@ -42,7 +42,7 @@ custom_images: # Override values from Master repo. Use this section incase you w
     image:
       repository: ghcr.io/traefik/traefik
       pullPolicy: IfNotPresent
-      tag: v3.3.3@sha256:f1fdee7fda041872cff24e36a08f45ca53f006ded88f743a8e30e3d87ca52b48
+      tag: 3.3.3@sha256:19884a9d0b922b321c9cff54cbfe43f3169893041b8dd4ea6100677afaddce46
   blocky:
     app_version: "development"
     image:
@@ -50,11 +50,11 @@ custom_images: # Override values from Master repo. Use this section incase you w
       pullPolicy: IfNotPresent
       tag: development@sha256:a7ff25c5df11872e10beff1a0f226e5d751ee2799649d5713fdc0eaa7f843fe1
   plex:
-    app_version: "1.41.3.9314-a0bfb8370"
+    app_version: "1.41.4.9463-630c9f557"
     image:
       repository: ghcr.io/onedr0p/plex
       pullPolicy: IfNotPresent
-      tag: 1.41.3.9314-a0bfb8370@sha256:4e004defdf450e5d86ce8c29f2dc62fa95fa12dfaae52fd36c948427eb186952
+      tag: 1.41.4.9463-630c9f557@sha256:1d7589538a85a48ed3c14703b33ae8bacda7ca7db5307c68e8bc1b8ae6e888de
   overseerr:
     app_version: "1.33.2"
     image:
@@ -80,10 +80,10 @@ custom_images: # Override values from Master repo. Use this section incase you w
       pullPolicy: IfNotPresent
       tag: 5.18.4.9674@sha256:f63ab1d9875d81f1b6d7cd69427749451d2fab981e39ffb8d9071c2e21041170
   sonarr:
-    app_version: "4.0.12.2823"
+    app_version: "4.0.13.2932"
     image:
       repository: ghcr.io/onedr0p/sonarr
-      tag: 4.0.12.2823@sha256:f453b589cd553e09244b2fb48d74ae4047e6fab1fa837e008755be1200a62407
+      tag: 4.0.13.2932@sha256:b9f76d8f542f9783c24cec4d26dc5fffcb2fca8eae1bc3170eadc0cf9d74120e
       pullPolicy: IfNotPresent
   readarr:
     app_version: "0.4.7.2718"
