@@ -97,7 +97,7 @@ custom_images: # Override values from Master repo. Use this section incase you w
       repository: ghcr.io/tautulli/tautulli
       pullPolicy: IfNotPresent
       tag: nightly@sha256:7ceadd27de6e4d3248a139a0232a8dcadd081e570639872f3f7b52a34dead007
-  hammand:
+  hammond:
     app_version: "0.0.25"
     image:
       repository: ghcr.io/heathouse/hammond
