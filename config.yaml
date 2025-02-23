@@ -27,7 +27,6 @@ io_optimization:
 
 folders_to_compare: # A list of chart directories to compare and update between the master and personal repositories. Options include `stable`, `incubator`, `system`, and `premium`.
   - stable
-  - incubator
   - system
   - premium
 
