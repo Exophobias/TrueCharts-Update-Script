@@ -126,3 +126,9 @@ custom_images: # Override values from Master repo. Use this section incase you w
       repository: "ghcr.io/linuxserver/grocy"
       tag: "4.4.1@sha256:3064bd56fa72d8eba748fcee209c40b6e86639e274966247e584a979e9c61677"
       pullPolicy: "IfNotPresent"
+  anything-llm:
+    app_version: "latest"
+    image:
+      repository: ghcr.io/mintplex-labs/anything-llm
+      pullPolicy: IfNotPresent
+      tag: latest@sha256:80ba0286c164c478f79ed308095afbe4dd1b49fa7382991f1d7b7090ab0198c1
