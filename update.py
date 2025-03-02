@@ -613,6 +613,8 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
         custom_image = config.custom_images.get(chart_name, None)
         custom_image_differs = False
         custom_app_version = None
+        old_sha = None
+        new_sha = None
 
         # Handle custom image case first
         if custom_image:
@@ -633,6 +635,8 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
                     new_image = custom_image.get('image', {})
                     if compare_image_data(current_image, new_image):
                         custom_image_differs = True
+                        old_sha = get_image_tag_parts(current_image.get('tag', ''))[1]
+                        new_sha = get_image_tag_parts(new_image.get('tag', ''))[1]
                     else:
                         # Check other custom config changes only if image hasn't changed
                         for key, value in custom_image.items():
@@ -687,7 +691,9 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
                     "master_app_version": master_app_version,
                     "personal_app_version": personal_app_version,
                     "old_chart_version": old_chart_version,
-                    "new_chart_version": new_chart_version
+                    "new_chart_version": new_chart_version,
+                    "old_sha": old_sha,
+                    "new_sha": new_sha
                 }
     
     else:
@@ -889,15 +895,14 @@ def generate_changelog_entry(differences: List[Dict[str, Any]]) -> Tuple[str, st
                 new_version = diff['master_app_version']
                 
                 special_versions = {'latest', 'stable', 'master', 'rolling', 'develop', 'dev', 'development', 'nightly'}
-                if old_version.lower() in special_versions:
-                    old_str = old_version
+                if old_version.lower() in special_versions and new_version.lower() in special_versions:
+                    old_sha = diff.get('old_sha', '')[-7:]
+                    new_sha = diff.get('new_sha', '')[-7:]
+                    old_str = old_sha if old_sha else old_version
+                    new_str = new_sha if new_sha else new_version
                 else:
-                    old_str = f"v{old_version.lstrip('v')}"
-                
-                if new_version.lower() in special_versions:
-                    new_str = new_version
-                else:
-                    new_str = f"v{new_version.lstrip('v')}"
+                    old_str = f"v{old_version.lstrip('v')}" if old_version.lower() not in special_versions else old_version
+                    new_str = f"v{new_version.lstrip('v')}" if new_version.lower() not in special_versions else new_version
                 
                 changelog_entry += f"\t\t\t- {chart_name}: {old_str} --> {new_str}\n"
 
