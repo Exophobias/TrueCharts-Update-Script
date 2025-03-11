@@ -37,11 +37,11 @@ branches_to_run:  # New key for setting multiple branches
 
 custom_images: # Override values from Master repo. Use this section incase you want to update an app or use an alternative package.
   traefik:
-    app_version: "3.3.3"
+    app_version: "3.3.4"
     image:
       repository: ghcr.io/traefik/traefik
       pullPolicy: IfNotPresent
-      tag: 3.3.3@sha256:19884a9d0b922b321c9cff54cbfe43f3169893041b8dd4ea6100677afaddce46
+      tag: 3.3.4@sha256:cc11989f418e2cfe5e60fc40c92c1813be847f58eda15eced7d5ac890255ad9e
   blocky:
     app_version: "development"
     image:
@@ -58,7 +58,7 @@ custom_images: # Override values from Master repo. Use this section incase you w
     app_version: "1.33.2"
     image:
       repository: ghcr.io/sct/overseerr
-      tag: develop@sha256:544725a8951d4d4196bf4a30ffc14587b639ee542e8a12d89b12f177668c91ed
+      tag: develop@sha256:fa8cb17bc162ce5c6d76b1af142dea4b6cd8e6e518ac342af36b42b3dc684d36
       pullPolicy: IfNotPresent
   sabnzbd:
     app_version: "4.4.1"
