@@ -107,7 +107,7 @@ custom_images: # Override values from Master repo. Use this section incase you w
     image:
       repository: ghcr.io/tigerblue77/dell_idrac_fan_controller
       pullPolicy: IfNotPresent
-      tag: latest@sha256:5184af88c6c03204611d40d4b1c6bc36202762592d16a97236bb4254951d23b0
+      tag: latest@sha256:eda09016a4acbee8883996f3b8cd4832a723200999bd037934675e75e2f00908
   minio:
     app_version: "2024-12-18"
     image:
