@@ -49,11 +49,11 @@ custom_images: # Override values from Master repo. Use this section incase you w
       pullPolicy: IfNotPresent
       tag: development@sha256:a7ff25c5df11872e10beff1a0f226e5d751ee2799649d5713fdc0eaa7f843fe1
   plex:
-    app_version: "1.41.4.9463-630c9f557"
+    app_version: "1.41.5.9522-a96edc606"
     image:
       repository: ghcr.io/onedr0p/plex
       pullPolicy: IfNotPresent
-      tag: 1.41.4.9463-630c9f557@sha256:1d7589538a85a48ed3c14703b33ae8bacda7ca7db5307c68e8bc1b8ae6e888de
+      tag: 1.41.5.9522-a96edc606@sha256:98a2883445f4901ec816b8dc4d684f94b4a6a21663cf6bde218f274a8c4ef289
   overseerr:
     app_version: "1.33.2"
     image:
