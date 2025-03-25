@@ -67,10 +67,10 @@ custom_images: # Override values from Master repo. Use this section incase you w
       pullPolicy: IfNotPresent
       tag: 4.4.1@sha256:95a8393d30e360297acee2dac8791e2787355d2880543200ce552f54ebab5c52
   prowlarr:
-    app_version: "1.31.2.4975"
+    app_version: "1.33.0"
     image:
-      repository: ghcr.io/onedr0p/prowlarr
-      tag: 1.31.2.4975@sha256:945c4b9f642a14b65c8ec07f553334b763b26156998a81ddad6aafdbcb752a3b
+      repository: ghcr.io/home-operations/prowlarr
+      tag: 1.33.0@sha256:b1b4da4df605bec0ba810cf18abf91bc6569f5d8144a64da699cb78a7c2ec30c
       pullPolicy: IfNotPresent
   radarr:
     app_version: "5.19.3.9730"
