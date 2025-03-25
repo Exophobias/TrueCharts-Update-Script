@@ -79,10 +79,10 @@ custom_images: # Override values from Master repo. Use this section incase you w
       pullPolicy: IfNotPresent
       tag: 5.21.1.9799@sha256:13171f1d476b4b0c9a44191ae60ddd0d1581b9cd89f9c5f7a82be602c0f95096
   sonarr:
-    app_version: "4.0.13.2932"
+    app_version: "4.0.14.2938"
     image:
-      repository: ghcr.io/onedr0p/sonarr
-      tag: 4.0.13.2932@sha256:b9f76d8f542f9783c24cec4d26dc5fffcb2fca8eae1bc3170eadc0cf9d74120e
+      repository: ghcr.io/home-operations/sonarr
+      tag: 4.0.14.2938@sha256:acd5416ab9c36d017687820a32f09d09a4e25a5754aa5ebeae2e7c63d7609c13
       pullPolicy: IfNotPresent
   readarr:
     app_version: "0.4.7.2718"
