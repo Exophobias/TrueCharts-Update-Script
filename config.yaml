@@ -73,11 +73,11 @@ custom_images: # Override values from Master repo. Use this section incase you w
       tag: 1.33.0@sha256:b1b4da4df605bec0ba810cf18abf91bc6569f5d8144a64da699cb78a7c2ec30c
       pullPolicy: IfNotPresent
   radarr:
-    app_version: "5.19.3.9730"
+    app_version: "5.21.1.9799"
     image:
-      repository: ghcr.io/onedr0p/radarr
+      repository: ghcr.io/home-operations/radarr
       pullPolicy: IfNotPresent
-      tag: 5.19.3.9730@sha256:7218cd42b646bb773a2c683b95860c51103c3ca7e0b9171b4bc549b95ddc6896
+      tag: 5.21.1.9799@sha256:13171f1d476b4b0c9a44191ae60ddd0d1581b9cd89f9c5f7a82be602c0f95096
   sonarr:
     app_version: "4.0.13.2932"
     image:
