@@ -131,4 +131,4 @@ custom_images: # Override values from Master repo. Use this section incase you w
     image:
       repository: ghcr.io/mintplex-labs/anything-llm
       pullPolicy: IfNotPresent
-      tag: latest@sha256:8b5be67f760144b96bd23f780d2cf51919e2dddcd3707d6ae758e9e8d4b97f79
+      tag: latest@sha256:b0da94e9f59d2d0af6c991fa7811598a42ca2750a4d0f88ad2d1a4eab9593fdb
