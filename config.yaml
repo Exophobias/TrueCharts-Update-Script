@@ -1,7 +1,7 @@
 repo:
-  master_repo_path: "F:/TrueNAS/TrueCharts_Master" # The local filesystem path to your cloned TrueCharts master repository. (https://github.com/truecharts/public)
+  master_repo_path: "I:/TrueNAS/TrueCharts_Master" # The local filesystem path to your cloned TrueCharts master repository. (https://github.com/truecharts/public)
   master_repo_branch: "master" # The branch to pull updates from in the master repository (usually `master`).
-  personal_repo_path: "F:/TrueNAS/truecharts_archive" # The local filesystem path to your cloned personal repository (your personal fork of TrueCharts from https://github.com/v3DJG6GL/truecharts_archive)
+  personal_repo_path: "I:/TrueNAS/truecharts_archive" # The local filesystem path to your cloned personal repository (your personal fork of TrueCharts from https://github.com/v3DJG6GL/truecharts_archive)
   personal_repo_branch: "main" # The branch to apply updates to in your personal repository.
 
 logging:
@@ -61,11 +61,11 @@ custom_images: # Override values from Master repo. Use this section incase you w
       tag: develop@sha256:331708ee83cd192dd21abb4291fb5d3700aa49d0cd449e0b288995b6f69f5d22
       pullPolicy: IfNotPresent
   sabnzbd:
-    app_version: "4.4.1"
+    app_version: "4.5.0"
     image:
       repository: ghcr.io/home-operations/sabnzbd
       pullPolicy: IfNotPresent
-      tag: 4.4.1@sha256:95a8393d30e360297acee2dac8791e2787355d2880543200ce552f54ebab5c52
+      tag: 4.5.0@sha256:2bf66d50132f1524067919a5b58215b18b1d9f30155c0008888e20fa609321ef
   prowlarr:
     app_version: "1.33.0"
     image:
