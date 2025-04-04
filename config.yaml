@@ -58,7 +58,7 @@ custom_images: # Override values from Master repo. Use this section incase you w
     app_version: "1.33.2"
     image:
       repository: ghcr.io/sct/overseerr
-      tag: develop@sha256:331708ee83cd192dd21abb4291fb5d3700aa49d0cd449e0b288995b6f69f5d22
+      tag: develop@sha256:ff2a81e16e281a30ed99a4956ce64df838bf86fbb69898fb1c42a15e3f52845b
       pullPolicy: IfNotPresent
   sabnzbd:
     app_version: "4.5.0"
