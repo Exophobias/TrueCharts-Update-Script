@@ -61,11 +61,11 @@ custom_images: # Override values from Master repo. Use this section incase you w
       tag: develop@sha256:94c0a376d07ce969a5f14cb17dd68395d6cd17895ec2eaf048dc1bcd052305bf
       pullPolicy: IfNotPresent
   sabnzbd:
-    app_version: "4.5.0"
+    app_version: "4.5.1"
     image:
       repository: ghcr.io/home-operations/sabnzbd
       pullPolicy: IfNotPresent
-      tag: 4.5.0@sha256:2bf66d50132f1524067919a5b58215b18b1d9f30155c0008888e20fa609321ef
+      tag: 4.5.1@sha256:4f2e137aea235fc4c42b7da6b9ef86439043b2dad93cc84b80186c60c405ea57
   prowlarr:
     app_version: "1.33.0"
     image:
