@@ -37,11 +37,11 @@ branches_to_run:  # New key for setting multiple branches
 
 custom_images: # Override values from Master repo. Use this section incase you want to update an app or use an alternative package.
   traefik:
-    app_version: "3.4.0-rc2"
+    app_version: "latest"
     image:
       repository: ghcr.io/traefik/traefik
       pullPolicy: IfNotPresent
-      tag: 3.4.0-rc2@sha256:840b53a1c43ba7ff96b0ae009aaa1f20e568d1ef93010987c74e12eaf371893d
+      tag: latest@sha256:83f3c843133530e4aa45e6ddc415488583a8a01c88adc5022d415c6e97ceeaae
   plex:
     app_version: "1.41.6.9685"
     image:
