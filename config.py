@@ -84,7 +84,9 @@ class Config:
                 'max_workers': self.max_workers,
             },
             'folders_to_compare': self.folders_to_compare,
-            'update_README': self.update_readme_file
+            'update_README': self.update_readme_file,
+            'branches_to_run': self.branches_to_run,
+            'custom_images': self.custom_images
         }
 
         with self.config_file.open('w', encoding='utf-8') as file:

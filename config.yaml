@@ -40,8 +40,8 @@ custom_images: # Override values from Master repo. Use this section incase you w
     app_version: "latest"
     image:
       repository: ghcr.io/traefik/traefik
-      pullPolicy: IfNotPresent
       tag: latest@sha256:83f3c843133530e4aa45e6ddc415488583a8a01c88adc5022d415c6e97ceeaae
+      pullPolicy: IfNotPresent
   plex:
     app_version: "1.41.6.9685"
     image:
