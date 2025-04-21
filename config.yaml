@@ -109,10 +109,10 @@ custom_images: # Override values from Master repo. Use this section incase you w
       pullPolicy: IfNotPresent
       tag: RELEASE.2024-12-18T13-15-44Z@sha256:1dce27c494a16bae114774f1cec295493f3613142713130c2d22dd5696be6ad3
   mylar:
-    app_version: "nightly-be4fced5-ls458"
+    app_version: "nightly"
     image:
       repository: ghcr.io/linuxserver/mylar3
-      tag: nightly-be4fced5-ls458@sha256:09f6b899a50e682070a3e597d4d17ebbc8b841001806a4f825b6ae68d0c454d8
+      tag: nightly@sha256:d17fb06df31ed37b22274450644cf63f5f0aab4f971a48d4f4134e2b66b6164b
       pullPolicy: IfNotPresent
   grocy:
     app_version: "nightly-be4fced5-ls458"
