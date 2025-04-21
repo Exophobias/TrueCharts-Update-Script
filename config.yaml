@@ -115,10 +115,10 @@ custom_images: # Override values from Master repo. Use this section incase you w
       tag: nightly@sha256:d17fb06df31ed37b22274450644cf63f5f0aab4f971a48d4f4134e2b66b6164b
       pullPolicy: IfNotPresent
   grocy:
-    app_version: "nightly-be4fced5-ls458"
+    app_version: "nightly"
     image:
-      repository: "ghcr.io/linuxserver/grocy"
-      tag: "4.4.1@sha256:3064bd56fa72d8eba748fcee209c40b6e86639e274966247e584a979e9c61677"
+      repository: ghcr.io/linuxserver/grocy
+      tag: latest@sha256:3fdf0e26724a4818c139644b387f9d0d848ab33cfa4bdca115382ebf127504fd
       pullPolicy: "IfNotPresent"
   anything-llm:
     app_version: "latest"
