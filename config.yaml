@@ -42,12 +42,6 @@ custom_images: # Override values from Master repo. Use this section incase you w
       repository: ghcr.io/traefik/traefik
       pullPolicy: IfNotPresent
       tag: 3.4.0-rc2@sha256:840b53a1c43ba7ff96b0ae009aaa1f20e568d1ef93010987c74e12eaf371893d
-  blocky:
-    app_version: "development"
-    image:
-      repository: ghcr.io/0xerr0r/blocky
-      pullPolicy: IfNotPresent
-      tag: development@sha256:a7ff25c5df11872e10beff1a0f226e5d751ee2799649d5713fdc0eaa7f843fe1
   plex:
     app_version: "1.41.6.9685"
     image:
