@@ -79,11 +79,11 @@ custom_images: # Override values from Master repo. Use this section incase you w
       tag: rolling@sha256:acd5416ab9c36d017687820a32f09d09a4e25a5754aa5ebeae2e7c63d7609c13
       pullPolicy: IfNotPresent
   readarr:
-    app_version: "0.4.7.2718"
+    app_version: "0.4.15.2787"
     image:
       repository: ghcr.io/elfhosted/readarr-develop
       pullPolicy: IfNotPresent
-      tag: 0.4.7.2718@sha256:68e5d14d1b57592fb05df7f434b611dfc845f96ba1daecb32cb85c65e6e4f26f
+      tag: rolling@sha256:e2da4611474274755d4ee9c272e579fa2e0b5596b4370bb3f4ccbe477bddec45
   tautulli:
     app_version: "nightly"
     image:
