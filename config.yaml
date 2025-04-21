@@ -47,7 +47,7 @@ custom_images: # Override values from Master repo. Use this section incase you w
     image:
       repository: ghcr.io/home-operations/plex
       pullPolicy: IfNotPresent
-      tag: 1.41.6.9685@sha256:37d36646471fb905a0080daaaa1f09ad3370b06149ed5f94dad73ead591cad0e
+      tag: rolling@sha256:37d36646471fb905a0080daaaa1f09ad3370b06149ed5f94dad73ead591cad0e
   overseerr:
     app_version: "1.33.2"
     image:
