@@ -67,7 +67,7 @@ custom_images: # Override values from Master repo. Use this section incase you w
       tag: rolling@sha256:866e9f26acc49b49ce18f650c145eb36cc5211fbf3fdfb3d629683319af8cb41
       pullPolicy: IfNotPresent
   radarr:
-    app_version: "5.22.3.9889"
+    app_version: "rolling"
     image:
       repository: ghcr.io/home-operations/radarr
       pullPolicy: IfNotPresent
