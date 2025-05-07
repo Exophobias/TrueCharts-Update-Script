@@ -6,6 +6,7 @@ import os
 import shutil
 import sys
 import time
+import inspect
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from tzlocal import get_localzone
@@ -582,20 +583,31 @@ def compare_image_data(current_image: Dict[str, str], new_image: Dict[str, str])
     
     # Compare tags including SHA256 hashes
     if 'tag' in current_image and 'tag' in new_image:
-        current_ver, current_sha = get_image_tag_parts(current_image['tag'])
-        new_ver, new_sha = get_image_tag_parts(new_image['tag'])
+        current_tag = current_image['tag']
+        new_tag = new_image['tag']
+        
+        # Enhanced detection for SHA changes
+        current_ver, current_sha = get_image_tag_parts(current_tag)
+        new_ver, new_sha = get_image_tag_parts(new_tag)
         
         logging.debug(f"Current version: {current_ver}, SHA: {current_sha}")
         logging.debug(f"New version: {new_ver}, SHA: {new_sha}")
         
-        # If versions are same but SHA256 hashes are different, consider it changed
-        if current_ver == new_ver and current_sha != new_sha:
-            logging.debug(f"SHA256 hash changed for version {current_ver}: {current_sha} -> {new_sha}")
+        # If SHA256 hashes differ, consider it a change regardless of version
+        if current_sha != new_sha and current_sha is not None and new_sha is not None:
+            logging.info(f"{chart_name}: SHA256 hash changed for version {current_ver}: {current_sha} -> {new_sha}")
             return True
-        # If versions are different
-        elif current_ver != new_ver:
+            
+        # If versions are different, it's a change
+        if current_ver != new_ver:
             logging.debug(f"Version changed: {current_ver} -> {new_ver}")
             return True
+            
+    # Compare pullPolicy if present in both
+    if ('pullPolicy' in current_image and 'pullPolicy' in new_image and 
+        current_image['pullPolicy'] != new_image['pullPolicy']):
+        logging.debug(f"Pull policy changed: {current_image['pullPolicy']} -> {new_image['pullPolicy']}")
+        return True
             
     logging.debug(f"No changes detected for {chart_name}")
     return False
@@ -662,7 +674,7 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
                     old_sha = current_sha
                     
                     # Force update if SHA has changed, even if version is the same
-                    if current_sha != new_sha:
+                    if current_sha != new_sha and current_sha is not None and new_sha is not None:
                         logging.info(f"{chart_name} - SHA256 hash change detected: {current_sha} -> {new_sha}")
                         custom_image_differs = True
                     elif current_ver != new_ver:
@@ -735,8 +747,91 @@ def compare_and_update_chart(chart_name: str, folder: str) -> Optional[Dict[str,
         if not master_app_version:
             logging.error(f"Could not retrieve master appVersion for {chart_name} in {folder}")
             return None
+        
+        app_versions_data = get_app_versions_data(personal_app_versions_json_path)
+        if not app_versions_data:
+            logging.error(f"Could not retrieve app_versions_data for {chart_name} in {folder}")
+            return None
             
-        # ... existing code...
+        personal_app_version = app_versions_data[next(iter(app_versions_data))]["chart_metadata"].get("appVersion")
+        if not personal_app_version:
+            logging.error(f"Could not retrieve personal appVersion for {chart_name} in {folder}")
+            return None
+           
+        # Check if the chart has custom configuration in config.yaml
+        if has_custom_config:
+            custom_app_version = config.custom_images.get(chart_name, {}).get('app_version')
+            if custom_app_version:
+                logging.info(f"Found custom app version for {chart_name}: {custom_app_version}")
+                master_app_version = custom_app_version
+                
+        needs_update = False
+        old_sha = None
+        new_sha = None
+                
+        # Handle SHA256 updates for custom images
+        if has_custom_config:
+            custom_image = config.custom_images.get(chart_name)
+            latest_chart_version = next(iter(app_versions_data))
+            ix_values_yaml_path = config.personal_repo_path / folder / chart_name / latest_chart_version / 'ix_values.yaml'
+            
+            if ix_values_yaml_path.exists():
+                yaml = YAML()
+                yaml.preserve_quotes = True
+                with ix_values_yaml_path.open('r', encoding='utf-8') as f:
+                    ix_values = yaml.load(f) or {}
+                
+                current_image = ix_values.get('image', {})
+                new_image = custom_image.get('image', {})
+                
+                # Detailed check for image changes
+                if current_image and new_image:
+                    # Use the compare_image_data function for detailed comparison
+                    if compare_image_data(current_image, new_image):
+                        # Get SHA details for changelog
+                        if 'tag' in current_image and 'tag' in new_image:
+                            current_tag = current_image.get('tag', '')
+                            new_tag = new_image.get('tag', '')
+                            _, current_sha = get_image_tag_parts(current_tag)
+                            _, new_sha = get_image_tag_parts(new_tag)
+                            old_sha = current_sha
+                            needs_update = True
+                            logging.info(f"{chart_name} - Image changes detected, needs update")
+        
+        # If we don't have a custom update yet, check for version differences
+        if not needs_update:
+            # Set needs_update to True if app versions are different
+            if normalize_version_string(master_app_version) != normalize_version_string(personal_app_version):
+                needs_update = True
+                logging.info(f"{chart_name} needs update: {personal_app_version} -> {master_app_version}")
+        
+        if needs_update:
+            old_chart_version, new_chart_version = get_old_and_new_chart_version(app_versions_data)
+            if old_chart_version and new_chart_version:
+                logging.info(f"{chart_name} in {folder}: Updating from {old_chart_version} to {new_chart_version}")
+                app_versions_data = update_app_versions_json(
+                    chart_name, old_chart_version, new_chart_version, personal_app_version, master_app_version, app_versions_data
+                )
+                save_app_versions_data(personal_app_versions_json_path, app_versions_data)
+                duplicate_and_rename_version_folder(chart_name, old_chart_version, new_chart_version, master_app_version, folder)
+
+                # Apply custom image configuration if this chart has overrides
+                if has_custom_config:
+                    new_ix_values_yaml = config.personal_repo_path / folder / chart_name / new_chart_version / 'ix_values.yaml'
+                    apply_custom_ix_values_overrides(new_ix_values_yaml, config.custom_images[chart_name])
+
+                return {
+                    "chart_name": chart_name,
+                    "folder": folder,
+                    "master_app_version": master_app_version,
+                    "personal_app_version": personal_app_version,
+                    "old_chart_version": old_chart_version,
+                    "new_chart_version": new_chart_version,
+                    "old_sha": old_sha,
+                    "new_sha": new_sha
+                }
+        else:
+            logging.debug(f"{chart_name} in {folder} is up to date.")
     
     else:
         if not master_chart_yaml_path.exists() and personal_app_versions_json_path.exists():
