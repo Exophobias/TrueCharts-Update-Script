@@ -59,7 +59,7 @@ custom_images: # Override values from Master repo. Use this section incase you w
     image:
       repository: ghcr.io/home-operations/sabnzbd
       pullPolicy: IfNotPresent
-      tag: rolling@sha256:83ced26f35674908821f3712dd48fdbf40f75da5149721690744526c4ec9f350
+      tag: rolling@sha256:0bd045af783ba13da0a9bf029ae5e574c9dcfcc65f1cd348ffc06b2660be90ff
   prowlarr:
     app_version: "rolling"
     image:
