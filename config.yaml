@@ -71,7 +71,7 @@ custom_images: # Override values from Master repo. Use this section incase you w
     image:
       repository: ghcr.io/home-operations/radarr
       pullPolicy: IfNotPresent
-      tag: rolling@sha256:9e7c9a048d63b0b9d8e4266561cf336ceecaec047fbc2508dcfe417e0f326cef
+      tag: rolling@sha256:794fb31c2773491429cdf50906443c301c61298b1e53f1e95ccf723c30c73d3f
   sonarr:
     app_version: "4.0.14.2938"
     image:
