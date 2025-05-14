@@ -89,7 +89,7 @@ custom_images: # Override values from Master repo. Use this section incase you w
     image:
       repository: ghcr.io/tautulli/tautulli
       pullPolicy: IfNotPresent
-      tag: nightly@sha256:3b79828046ba9cfee861c8c0f4a22a86a1daa7dff2e30c6dd1b9002dfd40da33
+      tag: nightly@sha256:7a1af67a7acd9e1b28e6f99b9b2b14dbe84e6d0c38b1afc1f8472a5b6013f4aa
   hammond:
     app_version: "0.0.25"
     image:
