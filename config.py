@@ -16,6 +16,10 @@ class Config:
         self.readme_path = None
         self.use_multiprocessing = None
         self.max_workers = None
+        self.chunk_size = None
+        self.buffer_size = None
+        self.use_direct_io = None
+        self.concurrent_io = None
         self.reset_type = None
         self.clean_untracked = None
         self.commit_after_finish = None
@@ -44,6 +48,13 @@ class Config:
             self.max_workers = config['multiprocessing'].get('max_workers', os.cpu_count())
             if self.max_workers <= 0:
                 self.max_workers = os.cpu_count()
+            self.chunk_size = config['multiprocessing'].get('chunk_size', 40)
+
+            # Load I/O optimization settings if present
+            io_config = config.get('io_optimization', {})
+            self.buffer_size = io_config.get('buffer_size', 8388608)
+            self.use_direct_io = io_config.get('use_direct_io', True)
+            self.concurrent_io = io_config.get('concurrent_io', True)
 
             self.reset_type = config['git'].get('reset_type', 'hard')
             self.clean_untracked = config['git'].get('clean_untracked', True)
@@ -78,10 +89,15 @@ class Config:
                 'clean_untracked': self.clean_untracked,
                 'commit_after_finish': self.commit_after_finish,
                 'push_commit_after_finish': self.push_commit_after_finish,
-            },
-            'multiprocessing': {
+            },            'multiprocessing': {
                 'use_multiprocessing': self.use_multiprocessing,
                 'max_workers': self.max_workers,
+                'chunk_size': self.chunk_size,
+            },
+            'io_optimization': {
+                'buffer_size': self.buffer_size,
+                'use_direct_io': self.use_direct_io,
+                'concurrent_io': self.concurrent_io,
             },
             'folders_to_compare': self.folders_to_compare,
             'update_README': self.update_readme_file,
