@@ -40,7 +40,7 @@ custom_images: # Override values from Master repo. Use this section incase you w
     app_version: "latest"
     image:
       repository: ghcr.io/traefik/traefik
-      tag: latest@sha256:4cf907247939b5d20bf4eff73abd21cb413c339600dde76dbc94a874b2578a27
+      tag: latest@sha256:cd40ab7bc1f047731d5b22595203812343efcb6538014c4e93221cfc3a77217a
       pullPolicy: IfNotPresent
   plex:
     app_version: "1.41.6.9685"
@@ -59,24 +59,24 @@ custom_images: # Override values from Master repo. Use this section incase you w
     image:
       repository: ghcr.io/home-operations/sabnzbd
       pullPolicy: IfNotPresent
-      tag: rolling@sha256:0bd045af783ba13da0a9bf029ae5e574c9dcfcc65f1cd348ffc06b2660be90ff
+      tag: rolling@sha256:d57f89bf771f2236a22643482d5a80736cb6c2944c7f7d4168a15332a5a26f83
   prowlarr:
     app_version: "rolling"
     image:
       repository: ghcr.io/home-operations/prowlarr
-      tag: rolling@sha256:94504dfaeccc5a72ae5cb9c8d776ebdddf91ab709a40bbacaf68bf7509f368d4
+      tag: rolling@sha256:fc2bf7caecc52e1dded4eee430c3fc77c08e4b812aa2b6b71b9083b673f96093
       pullPolicy: IfNotPresent
   radarr:
     app_version: "rolling"
     image:
       repository: ghcr.io/home-operations/radarr
       pullPolicy: IfNotPresent
-      tag: rolling@sha256:794fb31c2773491429cdf50906443c301c61298b1e53f1e95ccf723c30c73d3f
+      tag: rolling@sha256:f4e472beddcb6197fa9d08c41681dedbf21bee38db7f97057ba1d44dc9440a0c
   sonarr:
     app_version: "4.0.14.2938"
     image:
       repository: ghcr.io/home-operations/sonarr
-      tag: rolling@sha256:95c3d63b46c2ff242a0b646086da557a13ef1376f415bb755b9d87c0d94d0330
+      tag: rolling@sha256:5126f7ae94745a8e58e6963e1f67e905766c096832eff08b0678355ad0cdecee
       pullPolicy: IfNotPresent
   readarr:
     app_version: "0.4.15.2787"
@@ -125,4 +125,4 @@ custom_images: # Override values from Master repo. Use this section incase you w
     image:
       repository: ghcr.io/mintplex-labs/anything-llm
       pullPolicy: IfNotPresent
-      tag: latest@sha256:4a103c51bc00db6e7475fd7a6aad77acbb42305bc781f0a36fd38b2943fe1320
+      tag: latest@sha256:801b457a58a1acd9828ccf086495a6ad7363835ebfdc96affe9012b3cc560a5f
