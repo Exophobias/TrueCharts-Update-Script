@@ -162,3 +162,4 @@ cython_debug/
 *.lnk
 .vscode/launch.json
 update_catalog_from__app_versions.py
+config.yaml
