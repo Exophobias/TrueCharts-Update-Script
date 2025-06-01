@@ -1037,7 +1037,14 @@ def generate_changelog_entry(differences: List[Dict[str, Any]]) -> Tuple[str, st
                 new_version = diff['master_app_version']
                 
                 special_versions = {'latest', 'stable', 'master', 'rolling', 'develop', 'dev', 'development', 'nightly'}
-                if old_version.lower() in special_versions and new_version.lower() in special_versions:
+                
+                # Check if app versions are the same but SHA256 changed
+                if old_version == new_version and diff.get('old_sha') and diff.get('new_sha'):
+                    old_sha = diff.get('old_sha', '')[-7:]
+                    new_sha = diff.get('new_sha', '')[-7:]
+                    old_str = old_sha if old_sha else old_version
+                    new_str = new_sha if new_sha else new_version
+                elif old_version.lower() in special_versions and new_version.lower() in special_versions:
                     old_sha = diff.get('old_sha', '')[-7:]
                     new_sha = diff.get('new_sha', '')[-7:]
                     old_str = old_sha if old_sha else old_version
