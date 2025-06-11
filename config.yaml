@@ -47,7 +47,7 @@ custom_images: # Override values from Master repo. Use this section incase you w
     image:
       repository: ghcr.io/home-operations/plex
       pullPolicy: IfNotPresent
-      tag: rolling@sha256:86e83ad4b671c4326e4f2b4520aced967c60efdf1aaa77191aad6d2ee4148d59
+      tag: rolling@sha256:40e620ffcdc65331a0c2a7ed9a95700da7d527244f33c21bd35fc30aa25f19ea
   overseerr:
     app_version: "1.33.2"
     image:
@@ -64,19 +64,19 @@ custom_images: # Override values from Master repo. Use this section incase you w
     app_version: "rolling"
     image:
       repository: ghcr.io/home-operations/prowlarr
-      tag: rolling@sha256:fc2bf7caecc52e1dded4eee430c3fc77c08e4b812aa2b6b71b9083b673f96093
+      tag: rolling@sha256:aab0bfd4e96bdca19cca280a2bbf8ac60b9251dcae13459856b724a2dd3ae020
       pullPolicy: IfNotPresent
   radarr:
     app_version: "rolling"
     image:
       repository: ghcr.io/home-operations/radarr
       pullPolicy: IfNotPresent
-      tag: rolling@sha256:f4e472beddcb6197fa9d08c41681dedbf21bee38db7f97057ba1d44dc9440a0c
+      tag: rolling@sha256:1c85411af158a269592b9ce2c90ec10a59528f3585844b832e38f710e0c89557
   sonarr:
     app_version: "4.0.14.2938"
     image:
       repository: ghcr.io/home-operations/sonarr
-      tag: rolling@sha256:5126f7ae94745a8e58e6963e1f67e905766c096832eff08b0678355ad0cdecee
+      tag: rolling@sha256:ca6c735014bdfb04ce043bf1323a068ab1d1228eea5bab8305ca0722df7baf78
       pullPolicy: IfNotPresent
   readarr:
     app_version: "0.4.15.2787"
@@ -125,4 +125,4 @@ custom_images: # Override values from Master repo. Use this section incase you w
     image:
       repository: ghcr.io/mintplex-labs/anything-llm
       pullPolicy: IfNotPresent
-      tag: latest@sha256:801b457a58a1acd9828ccf086495a6ad7363835ebfdc96affe9012b3cc560a5f
+      tag: latest@sha256:c8455476d8413adb1d9afb915451722e7b8d56ec7f7907ebc435087bf6444459
