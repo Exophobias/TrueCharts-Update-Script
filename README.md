@@ -1,3 +1,9 @@
+# This repository is now ARCHIVED
+
+As of June 22, 2025, I decided to reinstall TrueNAS on my server and went with the new Docker-based TrueNAS so that I did not have to keep updating SHA256 hashes and to get the latest TrueNAS security updates.  
+You are more than welcome to fork this and continue using the update script that I also have on my GitHub but after using the latest TrueNAS Scale versions. I would bite the bullet and just spend the time to backup your things (using the HeavyScript script) and reinstall your apps and restore your information.  
+It only took a few hours to get Plex, Overseer, and the *arrs back up and running as if nothing changed.
+
 # TrueCharts Repo Update Script
 
 ## Description
